@@ -2840,7 +2840,7 @@
     const state = {
       uid: "user_" + Math.random().toString(36).substring(2, 10),
       userName: loadSavedName() || ("Khán giả " + Math.floor(100 + Math.random() * 899)),
-      hasCustomName: Boolean(loadSavedName()),
+      hasCustomName: false,
       roomFilter: "all",
       searchQuery: "",
       currentRoomId: null,
@@ -3393,8 +3393,12 @@
     // =========================================================
     let pendingEnterRoomId = null;
 
+    function isDefaultGuestName(name = "") {
+      return /^khán\s*giả(\s*\d+)?$/i.test(String(name || "").trim());
+    }
+
     function enterRoom(roomId) {
-      if (!state.hasCustomName) {
+      if (!state.hasCustomName || isDefaultGuestName(state.userName)) {
         pendingEnterRoomId = roomId;
         openNameModal(true);
         return;
@@ -5755,8 +5759,11 @@
       const input = document.getElementById("modal-name-input");
       const btn = document.getElementById("name-modal-confirm-btn");
       if (requireForRoom) {
-        if (input) input.value = "";
-        if (btn) btn.textContent = "Vào Rạp & Chọn Ghế";
+        if (input) {
+          const saved = loadSavedName();
+          input.value = (saved && !isDefaultGuestName(saved)) ? saved : "";
+        }
+        if (btn) btn.textContent = "Xác nhận & Vào Phòng";
       } else {
         if (btn) btn.textContent = "Lưu tên";
       }
@@ -5772,8 +5779,8 @@
     async function confirmNameModal() {
       const input = document.getElementById("modal-name-input");
       const val = (input?.value || "").trim();
-      if (!val) {
-        showToast("Vui lòng nhập tên của bạn trước khi vào phòng!", "error");
+      if (!val || isDefaultGuestName(val)) {
+        showToast("Vui lòng nhập tên riêng của bạn (không dùng tên mặc định 'Khán giả') để vào phòng!", "error");
         input?.focus();
         return;
       }
