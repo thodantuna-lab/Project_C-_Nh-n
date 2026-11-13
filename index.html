@@ -3032,6 +3032,9 @@
     let currentUser = null;
     let appId = "cineverse-lotte-pov";
     let roomChatUnsub = null;
+    let roomSyncUnsub = null;
+    let isApplyingRemoteSync = false;
+    let latestRoomSyncState = null;
     let myActiveSeatPath = null;
     let myActiveSeatDisconnect = null;
     let hasSyncedInitialSeats = false;
@@ -3433,6 +3436,7 @@
       if (state.sidebarTab === "ai") renderAICompanionMessages();
       setupRoomVideoPlayer(room);
       subscribeRoomChat(roomId);
+      subscribeRoomSync(roomId);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
@@ -3454,6 +3458,11 @@
         roomChatUnsub();
         roomChatUnsub = null;
       }
+      if (roomSyncUnsub) {
+        roomSyncUnsub();
+        roomSyncUnsub = null;
+      }
+      latestRoomSyncState = null;
       state.currentRoomId = null;
       document.getElementById("room-view").classList.add("hidden");
       document.getElementById("lobby-view").classList.remove("hidden");
@@ -4359,6 +4368,7 @@
             ? `<i class="fa-solid fa-play mr-1"></i>Phát tiếp`
             : `<i class="fa-solid fa-pause mr-1"></i>Tạm dừng`;
         }
+        broadcastRoomVideoSync(state.ytPaused ? "pause" : "play");
         return;
       }
 
@@ -4366,9 +4376,11 @@
       if (videoEl.paused) {
         videoEl.play().catch(() => {});
         if (btn) btn.innerHTML = `<i class="fa-solid fa-pause mr-1"></i>Tạm dừng`;
+        broadcastRoomVideoSync("play");
       } else {
         videoEl.pause();
         if (btn) btn.innerHTML = `<i class="fa-solid fa-play mr-1"></i>Phát tiếp`;
+        broadcastRoomVideoSync("pause");
       }
     }
 
@@ -4423,11 +4435,17 @@
       const videoEl = document.getElementById("html5-video-player");
       if (videoEl && videoEl.duration) {
         videoEl.currentTime = (parseFloat(percent) / 100) * videoEl.duration;
+        broadcastRoomVideoSync("seek");
       }
     }
 
     function syncLiveTime() {
       if (!state.currentRoomId) return;
+      if (latestRoomSyncState) {
+        applyRemoteVideoSync(state.currentRoomId, latestRoomSyncState, true);
+        showToast("Đã đồng bộ đúng giây phát cùng mọi người trong phòng!", "success");
+        return;
+      }
       const room = getEffectiveRoom(state.currentRoomId);
       setupRoomVideoPlayer(room);
       showToast("Đã đồng bộ thời gian phát phim cùng toàn bộ phòng chiếu!", "success");
@@ -5076,22 +5094,36 @@
       pushMessageToRoom(text);
     }
 
-    function sendReaction(emoji) {
+    function spawnFloatingEmojis(emoji) {
       const layer = document.getElementById("floating-reactions-layer");
-      if (layer) {
-        for (let i = 0; i < 4; i++) {
-          const span = document.createElement("span");
-          span.className = "floating-emoji";
-          span.style.left = `${15 + Math.random() * 70}%`;
-          span.style.animationDelay = `${i * 0.12}s`;
-          span.textContent = emoji;
-          layer.appendChild(span);
-          setTimeout(() => span.remove(), 2500);
-        }
+      if (!layer) return;
+      for (let i = 0; i < 4; i++) {
+        const span = document.createElement("span");
+        span.className = "floating-emoji";
+        span.style.left = `${15 + Math.random() * 70}%`;
+        span.style.animationDelay = `${i * 0.12}s`;
+        span.textContent = emoji;
+        layer.appendChild(span);
+        setTimeout(() => span.remove(), 2500);
       }
+    }
+
+    function sendReaction(emoji) {
+      spawnFloatingEmojis(emoji);
       if (state.currentRoomId) {
-        const mySeat = getMySeatInRoom(state.currentRoomId) || "F4";
-        triggerSeatBubble(state.currentRoomId, mySeat, state.userName, `${emoji} ${emoji} ${emoji}`, true);
+        const roomId = state.currentRoomId;
+        const mySeat = getMySeatInRoom(roomId) || "F4";
+        triggerSeatBubble(roomId, mySeat, state.userName, `${emoji} ${emoji} ${emoji}`, true);
+        if (rtdb && rtdbMod) {
+          rtdbMod.set(rtdbMod.ref(rtdb, `reactions/${roomId}`), {
+            id: Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+            emoji,
+            seatId: mySeat,
+            uid: state.uid,
+            userName: state.userName,
+            createdAt: Date.now()
+          }).catch(() => {});
+        }
       }
       playReactionSFX(emoji);
     }
@@ -5248,6 +5280,8 @@
       pushMessageToRoom(`🔗 Đã tạo lời mời bạn bè vào ngồi ghế ${buddySeat} ngay bên cạnh ghế ${mySeat}!`);
     }
 
+    let pendingInviteSeat = null;
+
     function checkInviteUrlParams() {
       try {
         const params = new URLSearchParams(window.location.search);
@@ -5255,6 +5289,11 @@
         const seatParam = params.get("seat");
         const inviter = params.get("inviter");
         if (roomParam && DEFAULT_ROOMS.some(r => r.id === roomParam)) {
+          if (!state.hasCustomName || isDefaultGuestName(state.userName)) {
+            pendingInviteSeat = { roomId: roomParam, seatId: seatParam, inviter };
+            enterRoom(roomParam);
+            return;
+          }
           enterRoom(roomParam);
           if (seatParam) {
             assignSeat(roomParam, seatParam, true);
@@ -5787,9 +5826,19 @@
       await applyNewUserName(val);
       const targetRoom = pendingEnterRoomId;
       pendingEnterRoomId = null;
+      const inviteInfo = pendingInviteSeat;
+      pendingInviteSeat = null;
       document.getElementById("name-modal")?.classList.add("hidden");
       if (targetRoom) {
         enterRoom(targetRoom);
+        if (inviteInfo && inviteInfo.roomId === targetRoom) {
+          if (inviteInfo.seatId) {
+            assignSeat(inviteInfo.roomId, inviteInfo.seatId, true);
+          }
+          if (inviteInfo.inviter) {
+            showToast(`👋 Bạn vừa vào rạp theo lời mời của ${inviteInfo.inviter} tại ghế ${inviteInfo.seatId || "F5"}!`, "success");
+          }
+        }
       }
     }
 
@@ -5879,6 +5928,7 @@
       const room = getEffectiveRoom(state.currentRoomId);
       updateRoomHeaderUI();
       setupRoomVideoPlayer(room);
+      broadcastRoomVideoSync("source");
       showToast(`🎬 Đang chiếu: "${finalTitle}"!`, "success");
     }
 
@@ -5991,6 +6041,9 @@
             changed = true;
             if (state.currentRoomId === roomId && data.uid !== state.uid && now - (data.createdAt || 0) < 15000) {
               triggerSeatBubble(roomId, data.seatId || "F4", data.userName, data.text, false);
+              if (state.sidebarTab !== "chat") {
+                showToast(`💬 ${data.userName} (Ghế ${data.seatId || "F4"}): ${data.text}`, "info");
+              }
             }
           }
         });
@@ -6001,6 +6054,146 @@
           }
         }
       }, () => {});
+    }
+
+    function broadcastRoomVideoSync(action = "update") {
+      if (!rtdb || !rtdbMod || !state.currentRoomId || isApplyingRemoteSync) return;
+      const roomId = state.currentRoomId;
+      const room = getEffectiveRoom(roomId);
+      const videoEl = document.getElementById("html5-video-player");
+      const ytWrapper = document.getElementById("youtube-wrapper");
+      const isYt = Boolean(ytWrapper && !ytWrapper.classList.contains("hidden") && room.youtubeId);
+      const isPlaying = isYt ? !state.ytPaused : Boolean(videoEl && !videoEl.paused);
+      const currentTime = (!isYt && videoEl && !isNaN(videoEl.currentTime)) ? Number(videoEl.currentTime.toFixed(2)) : 0;
+
+      const payload = {
+        youtubeId: room.youtubeId || "",
+        videoUrl: room.youtubeId ? "" : (room.videoUrl || ""),
+        movieTitle: room.movieTitle || "",
+        poster: room.poster || "",
+        isPlaying,
+        currentTime,
+        action,
+        uid: state.uid,
+        userName: state.userName,
+        updatedAt: Date.now()
+      };
+      rtdbMod.set(rtdbMod.ref(rtdb, `sync/${roomId}`), payload).catch(() => {});
+    }
+
+    function applyRemoteVideoSync(roomId, data, forceResync = false) {
+      if (!data || state.currentRoomId !== roomId) return;
+      if (!forceResync && data.uid === state.uid) return;
+
+      isApplyingRemoteSync = true;
+      try {
+        const currentRoom = getEffectiveRoom(roomId);
+        const remoteHasSource = Boolean(data.youtubeId || data.videoUrl);
+        const sourceChanged = remoteHasSource && (
+          (data.youtubeId || "") !== (currentRoom.youtubeId || "") ||
+          (data.videoUrl || "") !== (currentRoom.videoUrl || "")
+        );
+
+        const elapsed = data.isPlaying ? Math.max(0, (Date.now() - (data.updatedAt || Date.now())) / 1000) : 0;
+        const targetTime = Math.max(0, (Number(data.currentTime) || 0) + elapsed);
+
+        if (sourceChanged) {
+          state.roomsCustom[roomId] = {
+            status: "showing",
+            movieTitle: data.movieTitle || currentRoom.movieTitle,
+            youtubeId: data.youtubeId || "",
+            videoUrl: data.youtubeId ? "" : (data.videoUrl || ""),
+            isCustomStartZero: true,
+            poster: data.poster || currentRoom.poster,
+            hasLyrics: (data.movieTitle || "").toLowerCase().includes("tháng tư")
+          };
+          updateRoomHeaderUI();
+          setupRoomVideoPlayer(getEffectiveRoom(roomId));
+          if (!data.youtubeId) {
+            const videoEl = document.getElementById("html5-video-player");
+            if (videoEl) {
+              const prevOnLoaded = videoEl.onloadedmetadata;
+              videoEl.onloadedmetadata = (ev) => {
+                if (typeof prevOnLoaded === "function") prevOnLoaded(ev);
+                if (videoEl.duration) {
+                  videoEl.currentTime = targetTime % videoEl.duration;
+                }
+                if (!data.isPlaying) videoEl.pause();
+              };
+            }
+          }
+          if (Date.now() - (data.updatedAt || 0) < 10000 && data.uid !== state.uid) {
+            showToast(`🎬 ${data.userName} đã chuyển sang: "${data.movieTitle}"`, "info");
+          }
+          return;
+        }
+
+        const videoEl = document.getElementById("html5-video-player");
+        const ytWrapper = document.getElementById("youtube-wrapper");
+        const btn = document.getElementById("btn-play-pause");
+
+        if (ytWrapper && !ytWrapper.classList.contains("hidden")) {
+          state.ytPaused = !data.isPlaying;
+          sendYouTubeCommand(data.isPlaying ? "playVideo" : "pauseVideo");
+          if (btn) {
+            btn.innerHTML = state.ytPaused
+              ? `<i class="fa-solid fa-play mr-1"></i>Phát tiếp`
+              : `<i class="fa-solid fa-pause mr-1"></i>Tạm dừng`;
+          }
+        } else if (videoEl && !videoEl.classList.contains("hidden")) {
+          if (videoEl.duration && (forceResync || Math.abs((videoEl.currentTime || 0) - targetTime) > 1.8)) {
+            videoEl.currentTime = targetTime % videoEl.duration;
+          }
+          if (data.isPlaying && videoEl.paused) {
+            videoEl.play().catch(() => {
+              videoEl.muted = true;
+              const muteBtn = document.getElementById("btn-mute");
+              if (muteBtn) muteBtn.innerHTML = `<i class="fa-solid fa-volume-xmark mr-1 text-rose-400"></i>Đã tắt tiếng`;
+              videoEl.play().catch(() => {});
+            });
+            if (btn) btn.innerHTML = `<i class="fa-solid fa-pause mr-1"></i>Tạm dừng`;
+          } else if (!data.isPlaying && !videoEl.paused) {
+            videoEl.pause();
+            if (btn) btn.innerHTML = `<i class="fa-solid fa-play mr-1"></i>Phát tiếp`;
+          }
+        }
+
+        if (!forceResync && data.uid !== state.uid && Date.now() - (data.updatedAt || 0) < 8000) {
+          if (data.action === "pause") showToast(`⏸️ ${data.userName} đã tạm dừng phim`, "info");
+          else if (data.action === "play") showToast(`▶️ ${data.userName} đã tiếp tục phát phim`, "info");
+          else if (data.action === "seek") showToast(`⏩ ${data.userName} vừa tua tới ${formatTime(data.currentTime || 0)}`, "info");
+        }
+      } finally {
+        isApplyingRemoteSync = false;
+      }
+    }
+
+    function subscribeRoomSync(roomId) {
+      if (roomSyncUnsub) {
+        roomSyncUnsub();
+        roomSyncUnsub = null;
+      }
+      latestRoomSyncState = null;
+      if (!rtdb || !rtdbMod || !roomId) return;
+      const unsubVideo = rtdbMod.onValue(rtdbMod.ref(rtdb, `sync/${roomId}`), (snap) => {
+        const data = snap.val();
+        if (!data) return;
+        latestRoomSyncState = data;
+        applyRemoteVideoSync(roomId, data, false);
+      }, () => {});
+      let lastReactionId = "";
+      const unsubReact = rtdbMod.onValue(rtdbMod.ref(rtdb, `reactions/${roomId}`), (snap) => {
+        const data = snap.val();
+        if (!data || !data.id || data.id === lastReactionId) return;
+        lastReactionId = data.id;
+        if (data.uid === state.uid || Date.now() - (data.createdAt || 0) > 8000) return;
+        spawnFloatingEmojis(data.emoji);
+        triggerSeatBubble(roomId, data.seatId || "F4", data.userName, `${data.emoji} ${data.emoji} ${data.emoji}`, false);
+      }, () => {});
+      roomSyncUnsub = () => {
+        unsubVideo();
+        unsubReact();
+      };
     }
 
     async function initFirebase() {
@@ -6072,6 +6265,7 @@
           const mySeat = getMySeatInRoom(state.currentRoomId);
           if (mySeat) syncMySeatToRTDB(state.currentRoomId, mySeat);
           subscribeRoomChat(state.currentRoomId);
+          subscribeRoomSync(state.currentRoomId);
         }
       } catch (e) {
         // Hoạt động mượt mà ở chế độ Local Realtime nếu mất mạng
