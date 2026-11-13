@@ -1582,10 +1582,17 @@
                     <i class="fa-solid fa-chair text-amber-400"></i>
                     <span id="sub-seat-status-label">Tự động theo ghế F4</span>
                   </div>
-                  <button type="button" onclick="window.appActions.generateAISubtitlesNow()" id="btn-ai-sub"
-                    class="px-2.5 py-1 rounded-lg bg-sky-500/25 hover:bg-sky-500/40 border border-sky-400/40 text-sky-200 font-extrabold cursor-pointer" title="Dùng AI tự động dịch & tạo phụ đề cho video đang chiếu">
-                    <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>AI Tạo Phụ Đề
-                  </button>
+                  <div class="flex items-center gap-1.5">
+                    <button type="button" onclick="window.appActions.triggerSubtitleFileInput()" id="btn-srt-upload"
+                      class="px-2.5 py-1 rounded-lg bg-emerald-500/25 hover:bg-emerald-500/40 border border-emerald-400/40 text-emerald-200 font-extrabold cursor-pointer" title="Nạp file phụ đề .srt hoặc .vtt từ máy (nếu là Tiếng Anh sẽ tự động dịch sang Tiếng Việt)">
+                      <i class="fa-solid fa-file-arrow-up mr-1"></i>Nạp .SRT (Tự dịch VI)
+                    </button>
+                    <input id="sub-file-input" type="file" accept=".srt,.vtt,.txt" class="hidden" onchange="window.appActions.handleSubtitleFileSelect(event)" />
+                    <button type="button" onclick="window.appActions.generateAISubtitlesNow()" id="btn-ai-sub"
+                      class="px-2.5 py-1 rounded-lg bg-sky-500/25 hover:bg-sky-500/40 border border-sky-400/40 text-sky-200 font-extrabold cursor-pointer" title="Dùng AI tự động dịch & tạo phụ đề cho video đang chiếu">
+                      <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>AI Tạo Phụ Đề
+                    </button>
+                  </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -3981,6 +3988,129 @@
       }
     }
 
+    function parseSubtitleTimestamp(ts = "00:00:00,000") {
+      const clean = ts.trim().replace(",", ".");
+      const parts = clean.split(":");
+      if (parts.length === 3) {
+        return (parseInt(parts[0], 10) || 0) * 3600 + (parseInt(parts[1], 10) || 0) * 60 + (parseFloat(parts[2]) || 0);
+      }
+      if (parts.length === 2) {
+        return (parseInt(parts[0], 10) || 0) * 60 + (parseFloat(parts[1]) || 0);
+      }
+      return parseFloat(clean) || 0;
+    }
+
+    function parseSubtitleText(rawText = "") {
+      const normalized = rawText.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      const blocks = normalized.split(/\n{2,}/);
+      const cues = [];
+      for (const block of blocks) {
+        const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
+        if (lines.length < 2) continue;
+        const timeIdx = lines.findIndex(l => l.includes("-->"));
+        if (timeIdx === -1) continue;
+        const [startStr, endStr] = lines[timeIdx].split("-->").map(s => s.trim().split(/\s+/)[0]);
+        const start = parseSubtitleTimestamp(startStr);
+        const end = parseSubtitleTimestamp(endStr);
+        const rawDialogue = lines.slice(timeIdx + 1).join(" ").replace(/<[^>]+>/g, "").replace(/\{[^}]+\}/g, "").trim();
+        if (!rawDialogue || end <= start) continue;
+        cues.push({ time: start, end, en: rawDialogue, vi: rawDialogue });
+      }
+      return cues;
+    }
+
+    async function translateCuesEnToVi(cues, roomId) {
+      if (!cues || !cues.length) return;
+      const btn = document.getElementById("btn-srt-upload");
+      const BATCH_SIZE = 20;
+      let done = 0;
+
+      for (let i = 0; i < cues.length; i += BATCH_SIZE) {
+        if (state.customSubtitlesByRoom[roomId] !== cues) return; // Người dùng đã đổi phim hoặc nạp file khác
+        const slice = cues.slice(i, i + BATCH_SIZE);
+        const joined = slice.map((c, idx) => `[[${idx}]] ${c.en}`).join("\n");
+        try {
+          const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(joined)}`;
+          const res = await fetch(url);
+          const data = await res.json();
+          const fullTranslated = Array.isArray(data?.[0]) ? data[0].map(seg => seg[0] || "").join("") : "";
+          const parts = fullTranslated.split(/\[\[\s*(\d+)\s*\]\]/);
+          for (let p = 1; p < parts.length; p += 2) {
+            const idxNum = parseInt(parts[p], 10);
+            const txt = (parts[p + 1] || "").trim();
+            if (!isNaN(idxNum) && slice[idxNum] && txt) {
+              slice[idxNum].vi = txt;
+            }
+          }
+        } catch (e) {}
+
+        done = Math.min(cues.length, i + BATCH_SIZE);
+        if (btn) {
+          const pct = Math.round((done / cues.length) * 100);
+          btn.innerHTML = `<i class="fa-solid fa-language fa-spin mr-1"></i>Đang dịch ${pct}%`;
+        }
+        if (state.currentRoomId === roomId) {
+          const videoEl = document.getElementById("html5-video-player");
+          renderSubtitleAtTime(getEffectiveRoom(roomId), videoEl?.currentTime || 0);
+        }
+        await new Promise(r => setTimeout(r, 120));
+      }
+
+      if (btn) {
+        btn.innerHTML = `<i class="fa-solid fa-file-arrow-up mr-1"></i>Nạp .SRT (Tự dịch VI)`;
+      }
+      showToast(`✅ Đã dịch xong toàn bộ ${cues.length} câu phụ đề sang Tiếng Việt chuẩn xác!`, "success");
+    }
+
+    function triggerSubtitleFileInput() {
+      document.getElementById("sub-file-input")?.click();
+    }
+
+    async function applyParsedSubtitlesToRoom(cues, roomId, sourceLabel = ".SRT") {
+      if (!cues || !cues.length) {
+        showToast("File phụ đề không hợp lệ hoặc bị trống!", "error");
+        return;
+      }
+      state.customSubtitlesByRoom[roomId] = cues;
+      if (state.subtitleMode === "off") state.subtitleMode = "vi";
+      const ccBtn = document.getElementById("btn-cc-mode");
+      if (ccBtn) {
+        ccBtn.innerHTML = state.subtitleMode === "en"
+          ? `<i class="fa-solid fa-closed-captioning mr-1"></i>Phụ đề: Tiếng Anh`
+          : `<i class="fa-solid fa-closed-captioning mr-1"></i>Phụ đề: Tiếng Việt`;
+      }
+      const videoEl = document.getElementById("html5-video-player");
+      renderSubtitleAtTime(getEffectiveRoom(roomId), videoEl?.currentTime || 0);
+      showToast(`📝 Đã nạp ${cues.length} câu từ ${sourceLabel}! Đang tự động dịch sang Tiếng Việt...`, "success");
+      await translateCuesEnToVi(cues, roomId);
+    }
+
+    async function handleSubtitleFileSelect(e) {
+      const file = e.target?.files?.[0];
+      if (!file || !state.currentRoomId) return;
+      const roomId = state.currentRoomId;
+      const text = await file.text();
+      const cues = parseSubtitleText(text);
+      e.target.value = "";
+      await applyParsedSubtitlesToRoom(cues, roomId, file.name);
+    }
+
+    async function tryAutoLoadMatchingR2Subtitle(room) {
+      if (!room || !room.videoUrl || !room.videoUrl.includes(".r2.dev/")) return;
+      if (state.customSubtitlesByRoom[room.id]?.length) return;
+      const srtUrl = room.videoUrl.replace(/\.(mp4|webm|mov|mkv|m4v)(\?.*)?$/i, ".srt");
+      if (srtUrl === room.videoUrl) return;
+      try {
+        const res = await fetch(srtUrl, { cache: "no-store" });
+        if (!res.ok) return;
+        const text = await res.text();
+        const cues = parseSubtitleText(text);
+        if (cues.length > 0 && state.currentRoomId === room.id) {
+          await applyParsedSubtitlesToRoom(cues, room.id, "R2 .SRT");
+        }
+      } catch (e) {}
+    }
+
     function sendYouTubeCommand(func, args = "") {
       const iframe = document.getElementById("yt-active-iframe");
       if (iframe && iframe.contentWindow) {
@@ -4066,6 +4196,7 @@
 
       // Nếu phòng chiếu MP4 hoặc file tải lên từ máy
       if (room.videoUrl) {
+        tryAutoLoadMatchingR2Subtitle(room);
         videoEl.classList.remove("hidden");
         seekContainer.classList.remove("hidden");
         videoEl.src = room.videoUrl;
@@ -6463,6 +6594,8 @@
       updateManualSubtitleStyle,
       setManualSubAlign,
       generateAISubtitlesNow,
+      triggerSubtitleFileInput,
+      handleSubtitleFileSelect,
       toggleFullscreen,
       startUpcomingMovieNow,
       triggerLocalVideo,
