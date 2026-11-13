@@ -801,6 +801,29 @@
       transform: translateY(-2px) scale(1.06);
     }
 
+    /* Chế độ Toàn màn hình tương thích 100% iPhone Safari & Android (giữ nguyên phụ đề Tiếng Việt) */
+    body.mobile-cinema-fullscreen {
+      overflow: hidden !important;
+    }
+    body.mobile-cinema-fullscreen #cinema-screen {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100dvh !important;
+      aspect-ratio: auto !important;
+      z-index: 9999 !important;
+      border-radius: 0 !important;
+      background: #000 !important;
+      transform: none !important;
+    }
+    body.mobile-cinema-fullscreen #cinema-screen .imax-curve-arch-top,
+    body.mobile-cinema-fullscreen #cinema-screen .imax-curve-arch-bottom {
+      display: none !important;
+    }
+    body.mobile-cinema-fullscreen #btn-exit-mobile-fs {
+      display: flex !important;
+    }
+
     /* Tối ưu mobile cho màn hình & 6 hàng ghế */
     @media (max-width: 640px) {
       .seat-row-tier[data-row] {
@@ -1470,6 +1493,13 @@
                 <div class="imax-curve-arch-top"></div>
                 <div class="imax-curve-arch-bottom"></div>
                 <div class="imax-screen-sheen"></div>
+
+                <!-- Nút thoát toàn màn hình cho iPhone / Android -->
+                <button type="button" id="btn-exit-mobile-fs" onclick="window.appActions.toggleFullscreen()"
+                  class="hidden fixed top-3 right-3 z-[10000] px-3 py-1.5 rounded-xl bg-black/75 hover:bg-rose-600 border border-white/25 text-white text-xs font-black items-center gap-1.5 shadow-2xl backdrop-blur-md cursor-pointer">
+                  <i class="fa-solid fa-compress"></i>
+                  <span>Thu nhỏ</span>
+                </button>
 
                 <!-- 1. Trình phát Video HTML5 (.mp4 / file từ máy) -->
                 <video id="html5-video-player" class="w-full h-full object-contain bg-black hidden" playsinline></video>
@@ -2595,7 +2625,7 @@
         youtubeId: "",
         videoUrl: "https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Godzilla_vs_Kong/Godzilla.Vs..Kong.2021.1080p.WEBRip.x264.AAC5.1-%5BYTS.MX%5D.mp4",
         previewVideoUrl: "https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Godzilla_vs_Kong/Godzilla.Vs..Kong.2021.1080p.WEBRip.x264.AAC5.1-%5BYTS.MX%5D.mp4",
-        poster: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=85",
+        poster: "https://upload.wikimedia.org/wikipedia/en/6/63/Godzilla_vs._Kong.png",
         rankBadge: "BOM TẤN R2 • TỰ ĐỘNG .SRT",
         matchScore: "99% Phù hợp",
         ageRating: "T13+",
@@ -2615,7 +2645,7 @@
         youtubeId: "",
         videoUrl: "https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/R2_Cloud/Xem%20V%C3%B9ng%20%C4%90%E1%BA%A5t%20Qu%E1%BB%B7%20D%E1%BB%AF%202026%20(Resident%20Evil%202026)%20Vietsub%20Full%20HD%20-%20M%E1%BB%8Dt%20chill%20-%208phimx.mp4",
         previewVideoUrl: "https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/R2_Cloud/Xem%20V%C3%B9ng%20%C4%90%E1%BA%A5t%20Qu%E1%BB%B7%20D%E1%BB%AF%202026%20(Resident%20Evil%202026)%20Vietsub%20Full%20HD%20-%20M%E1%BB%8Dt%20chill%20-%208phimx.mp4",
-        poster: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=85",
+        poster: "https://www.sonypictures.com/sites/default/files/banner-images/2026-10/residentevil_banner_2572x1100_pvod.jpg",
         rankBadge: "PHIM MỚI R2 • VIETSUB",
         matchScore: "98% Phù hợp",
         ageRating: "T18+",
@@ -2635,7 +2665,7 @@
         youtubeId: "",
         videoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 48 (Vietsub)Ani-One Vietnam.mp4")}`,
         previewVideoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 48 (Vietsub)Ani-One Vietnam.mp4")}`,
-        poster: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=85",
+        poster: "https://upload.wikimedia.org/wikipedia/en/7/7a/Jujutsu_Kaisen_S3_V1_BD.png",
         rankBadge: "JJK MÙA 3 • TẬP 48",
         matchScore: "99% Phù hợp",
         ageRating: "T16+",
@@ -2655,7 +2685,7 @@
         youtubeId: "",
         videoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 49 (Vietsub)Ani-One Vietnam.mp4")}`,
         previewVideoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 49 (Vietsub)Ani-One Vietnam.mp4")}`,
-        poster: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=85",
+        poster: "https://upload.wikimedia.org/wikipedia/en/7/7a/Jujutsu_Kaisen_S3_V1_BD.png",
         rankBadge: "JJK MÙA 3 • TẬP 49",
         matchScore: "98% Phù hợp",
         ageRating: "T16+",
@@ -2675,7 +2705,7 @@
         youtubeId: "",
         videoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 50 (Vietsub)Ani-One Vietnam.mp4")}`,
         previewVideoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 50 (Vietsub)Ani-One Vietnam.mp4")}`,
-        poster: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=85",
+        poster: "https://upload.wikimedia.org/wikipedia/en/7/7a/Jujutsu_Kaisen_S3_V1_BD.png",
         rankBadge: "JJK MÙA 3 • TẬP 50",
         matchScore: "98% Phù hợp",
         ageRating: "T16+",
@@ -2695,7 +2725,7 @@
         youtubeId: "",
         videoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 51 (Vietsub)Ani-One Vietnam.mp4")}`,
         previewVideoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 51 (Vietsub)Ani-One Vietnam.mp4")}`,
-        poster: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=85",
+        poster: "https://upload.wikimedia.org/wikipedia/en/7/7a/Jujutsu_Kaisen_S3_V1_BD.png",
         rankBadge: "JJK MÙA 3 • TẬP 51",
         matchScore: "98% Phù hợp",
         ageRating: "T16+",
@@ -2810,7 +2840,7 @@
           duration: "113:09",
           durationSec: 6789,
           sizeText: "Cloudflare R2 • 2.24 GB",
-          poster: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80",
+          poster: "https://upload.wikimedia.org/wikipedia/en/6/63/Godzilla_vs._Kong.png",
           hasLyrics: false,
           createdAt: Date.now()
         },
@@ -2823,7 +2853,7 @@
           duration: "Full HD",
           durationSec: 6000,
           sizeText: "Cloudflare R2 • Vietsub",
-          poster: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=800&q=80",
+          poster: "https://www.sonypictures.com/sites/default/files/banner-images/2026-10/residentevil_banner_2572x1100_pvod.jpg",
           hasLyrics: false,
           createdAt: Date.now() - 500
         },
@@ -2849,7 +2879,7 @@
           duration: "24:00",
           durationSec: 1440,
           sizeText: `Cloudflare R2 • ${item.mb}`,
-          poster: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80",
+          poster: "https://upload.wikimedia.org/wikipedia/en/7/7a/Jujutsu_Kaisen_S3_V1_BD.png",
           hasLyrics: false,
           createdAt: Date.now() - ((idx + 1) * 1000)
         }))
@@ -4333,14 +4363,40 @@
       showToast("Đã đồng bộ thời gian phát phim cùng toàn bộ phòng chiếu!", "success");
     }
 
-    function toggleFullscreen() {
-      const screen = document.getElementById("cinema-screen");
-      if (!screen) return;
-      if (!document.fullscreenElement) {
-        screen.requestFullscreen?.();
-      } else {
-        document.exitFullscreen?.();
+    async function toggleFullscreen() {
+      const screenEl = document.getElementById("cinema-screen");
+      if (!screenEl) return;
+
+      const isCssFs = document.body.classList.contains("mobile-cinema-fullscreen");
+      const nativeFsEl = document.fullscreenElement || document.webkitFullscreenElement;
+
+      if (isCssFs) {
+        document.body.classList.remove("mobile-cinema-fullscreen");
+        try { window.screen?.orientation?.unlock?.(); } catch (e) {}
+        return;
       }
+
+      if (nativeFsEl) {
+        try {
+          await (document.exitFullscreen?.() || document.webkitExitFullscreen?.());
+        } catch (e) {}
+        try { window.screen?.orientation?.unlock?.(); } catch (e) {}
+        return;
+      }
+
+      const reqFs = screenEl.requestFullscreen || screenEl.webkitRequestFullscreen;
+      if (typeof reqFs === "function") {
+        try {
+          await reqFs.call(screenEl);
+          try { await window.screen?.orientation?.lock?.("landscape"); } catch (e) {}
+          return;
+        } catch (e) {
+          // Fallback sang chế độ Toàn màn hình CSS cho iPhone Safari / trình duyệt chặn requestFullscreen
+        }
+      }
+
+      document.body.classList.add("mobile-cinema-fullscreen");
+      try { await window.screen?.orientation?.lock?.("landscape"); } catch (e) {}
     }
 
     function startUpcomingMovieNow() {
@@ -6497,7 +6553,7 @@
             duration: "HD Live",
             durationSec: 1440,
             sizeText: `Cloudflare R2 • ${mb}`,
-            poster: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80",
+            poster: "https://upload.wikimedia.org/wikipedia/en/7/7a/Jujutsu_Kaisen_S3_V1_BD.png",
             hasLyrics: false,
             createdAt: v.uploaded ? new Date(v.uploaded).getTime() : Date.now()
           });
@@ -6642,44 +6698,4 @@
       hostBroadcastSync,
       toggleRoomPinLock,
       toggleAmbilight,
-      toggleCinemaSFX,
-      playCinemaBellSFX,
-      openBookingModal,
-      closeBookingModal,
-      openBookingModalForHero,
-      openBookingModalFromBar,
-      quickBookFromLobbyBar,
-      onBookingRoomChange,
-      onBookingComboChange,
-      selectBookingShowtime,
-      selectBookingSeat,
-      confirmCinemaBooking,
-      openMemoryCapsuleModal,
-      closeMemoryCapsuleModal,
-      mintCurrentMomentCapsule,
-      shareCapsuleToSocial,
-      shareCapsuleToRoomChat,
-      downloadCapsuleCardPNG,
-      deleteMemoryCapsule,
-      syncFromR2Worker
-    };
-
-    // Khởi chạy ứng dụng ngay lập tức
-    updateNameUI();
-    updateMySnackStatusUI();
-    updateVaultBadgeCount();
-    loadVaultFromIndexedDB();
-    renderHeroBillboard();
-    startHeroAutoSlide();
-    startAmbilightLoop();
-    renderLobby();
-    renderJJKEpisodeLists();
-    renderMemoryCapsulesUI();
-    if (state.r2WorkerUrl) syncFromR2Worker(true);
-    initSeatingMapDelegation();
-    renderSeatingMap();
-    checkInviteUrlParams();
-    initFirebase();
-  </script>
-</body>
-</html>
+      to
