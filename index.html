@@ -1648,12 +1648,19 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div class="space-y-1">
-                    <div class="flex justify-between text-[11px]">
+                    <div class="flex items-center justify-between text-[11px]">
                       <span class="text-slate-300 font-semibold">Cỡ chữ:</span>
-                      <strong id="sub-size-val" class="text-amber-300 font-mono">16px</strong>
+                      <div class="flex items-center gap-1">
+                        <button type="button" onclick="window.appActions.adjustSubtitleFontSize(-2)"
+                          class="px-2 py-0.5 rounded bg-stone-800 hover:bg-amber-500 hover:text-slate-950 text-white font-black text-[11px] border border-white/15 cursor-pointer">A-</button>
+                        <strong id="sub-size-val" class="text-amber-300 font-mono min-w-[34px] text-center">16px</strong>
+                        <button type="button" onclick="window.appActions.adjustSubtitleFontSize(2)"
+                          class="px-2 py-0.5 rounded bg-stone-800 hover:bg-amber-500 hover:text-slate-950 text-white font-black text-[11px] border border-white/15 cursor-pointer">A+</button>
+                      </div>
                     </div>
-                    <input id="sub-size-slider" type="range" min="11" max="24" value="16"
+                    <input id="sub-size-slider" type="range" min="10" max="32" value="16"
                       oninput="window.appActions.updateManualSubtitleStyle()"
+                      onchange="window.appActions.updateManualSubtitleStyle()"
                       class="w-full accent-amber-400 cursor-pointer" />
                   </div>
 
@@ -3844,6 +3851,16 @@
       applySubtitlePositionAndSize();
     }
 
+    function adjustSubtitleFontSize(delta) {
+      const autoCheck = document.getElementById("sub-auto-seat-checkbox");
+      if (autoCheck) autoCheck.checked = false;
+      state.subtitleConfig.autoBySeat = false;
+
+      const nextSize = Math.min(32, Math.max(10, (state.subtitleConfig.fontSize || 16) + delta));
+      state.subtitleConfig.fontSize = nextSize;
+      applySubtitlePositionAndSize();
+    }
+
     function setManualSubAlign(align) {
       const autoCheck = document.getElementById("sub-auto-seat-checkbox");
       if (autoCheck) autoCheck.checked = false;
@@ -4384,8 +4401,55 @@
       showToast("Đã đồng bộ thời gian phát phim cùng toàn bộ phòng chiếu!", "success");
     }
 
+    function formatVttTime(sec = 0) {
+      const s = Math.max(0, Number(sec) || 0);
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const rem = (s % 60).toFixed(3).padStart(6, "0");
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${rem}`;
+    }
+
+    function syncNativeVideoTextTrack(roomId) {
+      const videoEl = document.getElementById("html5-video-player");
+      if (!videoEl) return;
+      videoEl.querySelectorAll("track").forEach(t => {
+        if (t.dataset.blobUrl) URL.revokeObjectURL(t.dataset.blobUrl);
+        t.remove();
+      });
+      if (state.subtitleMode === "off" || !roomId) return;
+      const cues = getActiveSubtitlesForRoom(getEffectiveRoom(roomId));
+      if (!cues || !cues.length) return;
+
+      const vttLines = ["WEBVTT", ""];
+      cues.forEach((c, idx) => {
+        const start = Number(c.time) || 0;
+        const end = Number(c.end) || (start + 4);
+        const text = state.subtitleMode === "en" ? (c.en || c.vi || "") : (c.vi || c.en || "");
+        if (text && end > start) {
+          vttLines.push(String(idx + 1));
+          vttLines.push(`${formatVttTime(start)} --> ${formatVttTime(end)}`);
+          vttLines.push(text);
+          vttLines.push("");
+        }
+      });
+
+      const blobUrl = URL.createObjectURL(new Blob([vttLines.join("\n")], { type: "text/vtt" }));
+      const track = document.createElement("track");
+      track.kind = "subtitles";
+      track.label = state.subtitleMode === "en" ? "English" : "Tiếng Việt";
+      track.srclang = state.subtitleMode === "en" ? "en" : "vi";
+      track.default = true;
+      track.src = blobUrl;
+      track.dataset.blobUrl = blobUrl;
+      videoEl.appendChild(track);
+      if (videoEl.textTracks && videoEl.textTracks[0]) {
+        videoEl.textTracks[0].mode = "showing";
+      }
+    }
+
     async function toggleFullscreen() {
       const screenEl = document.getElementById("cinema-screen");
+      const videoEl = document.getElementById("html5-video-player");
       const placeholder = document.getElementById("cinema-screen-placeholder");
       if (!screenEl) return;
 
@@ -4410,8 +4474,17 @@
       }
 
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-      const reqFs = !isIOS ? (screenEl.requestFullscreen || screenEl.webkitRequestFullscreen) : null;
 
+      // Trên iPhone/iPad: ưu tiên trình phát toàn màn hình gốc của iOS (tự xoay theo điện thoại & hỗ trợ phụ đề WebVTT)
+      if (isIOS && videoEl && !videoEl.classList.contains("hidden") && typeof videoEl.webkitEnterFullscreen === "function") {
+        try {
+          if (state.currentRoomId) syncNativeVideoTextTrack(state.currentRoomId);
+          videoEl.webkitEnterFullscreen();
+          return;
+        } catch (e) {}
+      }
+
+      const reqFs = !isIOS ? (screenEl.requestFullscreen || screenEl.webkitRequestFullscreen) : null;
       if (typeof reqFs === "function") {
         try {
           await reqFs.call(screenEl);
@@ -6672,6 +6745,7 @@
       toggleSubtitleSettingsPanel,
       toggleAutoSubtitleBySeat,
       updateManualSubtitleStyle,
+      adjustSubtitleFontSize,
       setManualSubAlign,
       generateAISubtitlesNow,
       triggerSubtitleFileInput,
