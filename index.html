@@ -1259,6 +1259,10 @@
             <span id="room-header-number" class="px-2 py-0.5 rounded-lg bg-rose-600 text-white font-black text-[11px]">Phòng 01</span>
             <span id="room-header-status" class="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[11px]">Đang chiếu</span>
             <span class="text-[11px] text-slate-400"><i class="fa-solid fa-users mr-1 text-amber-400"></i><strong id="room-header-count" class="text-white">1</strong> khách</span>
+            <button type="button" id="btn-room-host" onclick="window.appActions.toggleRoomHost()"
+              class="px-2 py-0.5 rounded-lg bg-stone-800 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-[11px] transition cursor-pointer">
+              <i class="fa-solid fa-crown mr-1"></i>Nhận Chủ Trì
+            </button>
           </div>
           <h2 id="room-header-title" class="text-xs sm:text-sm font-extrabold text-white mt-0.5 truncate max-w-[200px] sm:max-w-xs md:max-w-md">Tên bộ phim</h2>
         </div>
@@ -3035,6 +3039,10 @@
     let roomSyncUnsub = null;
     let isApplyingRemoteSync = false;
     let latestRoomSyncState = null;
+    let currentRoomHost = null;
+    let hostHeartbeatTimer = null;
+    let myHostDisconnect = null;
+    let myHostRoomId = null;
     let myActiveSeatPath = null;
     let myActiveSeatDisconnect = null;
     let hasSyncedInitialSeats = false;
@@ -3448,7 +3456,10 @@
           delete state.seatsByRoom[oldRoomId][mySeat];
         }
         clearMySeatFromRTDB();
+        releaseMyHostStatus();
       }
+      currentRoomHost = null;
+      renderRoomHostBadge();
       stopRoomVideoPlayer();
       if (state.dimmed) {
         toggleDimLights();
@@ -6056,8 +6067,94 @@
       }, () => {});
     }
 
+    function isIAmHost() {
+      return Boolean(currentRoomHost && currentRoomHost.uid === state.uid);
+    }
+
+    function renderRoomHostBadge() {
+      const btn = document.getElementById("btn-room-host");
+      if (!btn) return;
+      if (!currentRoomHost || !currentRoomHost.uid) {
+        btn.innerHTML = `<i class="fa-solid fa-crown mr-1"></i>Nhận Chủ Trì`;
+        btn.className = "px-2 py-0.5 rounded-lg bg-stone-800 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-[11px] transition cursor-pointer";
+      } else if (currentRoomHost.uid === state.uid) {
+        btn.innerHTML = `<i class="fa-solid fa-crown mr-1"></i>Bạn là Chủ Trì (Đang đồng bộ)`;
+        btn.className = "px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-black text-[11px] shadow cursor-pointer";
+      } else {
+        btn.innerHTML = `<i class="fa-solid fa-crown mr-1 text-amber-400"></i>Chủ Trì: ${escapeHTML(currentRoomHost.userName || "Host")}`;
+        btn.className = "px-2 py-0.5 rounded-lg bg-purple-600/25 text-purple-200 border border-purple-400/40 font-bold text-[11px] cursor-pointer";
+      }
+    }
+
+    function stopHostHeartbeat() {
+      if (hostHeartbeatTimer) {
+        clearInterval(hostHeartbeatTimer);
+        hostHeartbeatTimer = null;
+      }
+    }
+
+    function startHostHeartbeat() {
+      stopHostHeartbeat();
+      hostHeartbeatTimer = setInterval(() => {
+        if (isIAmHost() && state.currentRoomId) {
+          broadcastRoomVideoSync("heartbeat");
+        }
+      }, 3000);
+    }
+
+    function releaseMyHostStatus() {
+      stopHostHeartbeat();
+      if (myHostDisconnect) {
+        try { myHostDisconnect.cancel(); } catch (e) {}
+        myHostDisconnect = null;
+      }
+      if (myHostRoomId && rtdb && rtdbMod) {
+        try { rtdbMod.remove(rtdbMod.ref(rtdb, `host/${myHostRoomId}`)); } catch (e) {}
+      }
+      myHostRoomId = null;
+    }
+
+    async function toggleRoomHost() {
+      if (!state.currentRoomId || !rtdb || !rtdbMod) {
+        showToast("Đang kết nối máy chủ, vui lòng thử lại sau 1 giây!", "info");
+        return;
+      }
+      const roomId = state.currentRoomId;
+      if (isIAmHost()) {
+        releaseMyHostStatus();
+        showToast("Bạn đã nhường quyền Chủ Trì phòng.", "info");
+        return;
+      }
+      if (currentRoomHost && currentRoomHost.uid && currentRoomHost.uid !== state.uid) {
+        showToast(`👑 ${currentRoomHost.userName} đang làm Chủ Trì phòng này!`, "info");
+        return;
+      }
+      try {
+        const hostRef = rtdbMod.ref(rtdb, `host/${roomId}`);
+        myHostRoomId = roomId;
+        myHostDisconnect = rtdbMod.onDisconnect(hostRef);
+        await myHostDisconnect.remove();
+        await rtdbMod.set(hostRef, {
+          uid: state.uid,
+          userName: state.userName,
+          updatedAt: Date.now()
+        });
+        startHostHeartbeat();
+        broadcastRoomVideoSync("host");
+        showToast("👑 Bạn đã làm Chủ Trì! Mọi người trong phòng sẽ tự động chạy theo thời gian của bạn.", "success");
+      } catch (e) {
+        showToast("Không thể nhận quyền Chủ Trì lúc này, vui lòng thử lại.", "error");
+      }
+    }
+
     function broadcastRoomVideoSync(action = "update") {
       if (!rtdb || !rtdbMod || !state.currentRoomId || isApplyingRemoteSync) return;
+      if (currentRoomHost && currentRoomHost.uid && currentRoomHost.uid !== state.uid) {
+        if (action !== "heartbeat") {
+          showToast(`👑 Bạn đang xem theo thời gian của Chủ Trì ${currentRoomHost.userName}!`, "info");
+        }
+        return;
+      }
       const roomId = state.currentRoomId;
       const room = getEffectiveRoom(roomId);
       const videoEl = document.getElementById("html5-video-player");
@@ -6084,6 +6181,7 @@
     function applyRemoteVideoSync(roomId, data, forceResync = false) {
       if (!data || state.currentRoomId !== roomId) return;
       if (!forceResync && data.uid === state.uid) return;
+      if (!forceResync && currentRoomHost && currentRoomHost.uid && data.uid !== currentRoomHost.uid) return;
 
       isApplyingRemoteSync = true;
       try {
@@ -6190,9 +6288,18 @@
         spawnFloatingEmojis(data.emoji);
         triggerSeatBubble(roomId, data.seatId || "F4", data.userName, `${data.emoji} ${data.emoji} ${data.emoji}`, false);
       }, () => {});
+      const unsubHost = rtdbMod.onValue(rtdbMod.ref(rtdb, `host/${roomId}`), (snap) => {
+        const hostVal = snap.val();
+        currentRoomHost = (hostVal && hostVal.uid) ? hostVal : null;
+        if (!isIAmHost()) {
+          stopHostHeartbeat();
+        }
+        renderRoomHostBadge();
+      }, () => {});
       roomSyncUnsub = () => {
         unsubVideo();
         unsubReact();
+        unsubHost();
       };
     }
 
@@ -6205,8 +6312,14 @@
         rtdb = databaseMod.getDatabase(app);
         rtdbMod = databaseMod;
 
-        window.addEventListener("pagehide", clearMySeatFromRTDB);
-        window.addEventListener("beforeunload", clearMySeatFromRTDB);
+        window.addEventListener("pagehide", () => {
+          clearMySeatFromRTDB();
+          releaseMyHostStatus();
+        });
+        window.addEventListener("beforeunload", () => {
+          clearMySeatFromRTDB();
+          releaseMyHostStatus();
+        });
 
         // Lắng nghe ghế ngồi của cả 6 phòng theo thời gian thực + phát hiện vào/ra phòng
         rtdbMod.onValue(rtdbMod.ref(rtdb, "seats"), (snap) => {
@@ -7074,6 +7187,7 @@
       setVolume,
       seekVideo,
       syncLiveTime,
+      toggleRoomHost,
       cycleSubtitleMode,
       toggleSubtitleSettingsPanel,
       toggleAutoSubtitleBySeat,
