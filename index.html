@@ -1263,6 +1263,11 @@
               class="px-2 py-0.5 rounded-lg bg-stone-800 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-[11px] transition cursor-pointer">
               <i class="fa-solid fa-crown mr-1"></i>Nhận Chủ Trì
             </button>
+            <button type="button" id="btn-room-mic" onclick="window.appActions.toggleVoiceMic()"
+              class="px-2 py-0.5 rounded-lg bg-stone-800 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[11px] transition cursor-pointer">
+              <i class="fa-solid fa-microphone-slash mr-1"></i>Bật Mic
+            </button>
+            <div id="voice-audio-container" class="hidden"></div>
           </div>
           <h2 id="room-header-title" class="text-xs sm:text-sm font-extrabold text-white mt-0.5 truncate max-w-[200px] sm:max-w-xs md:max-w-md">Tên bộ phim</h2>
         </div>
@@ -2765,6 +2770,28 @@
         quality: "1080P VIETSUB",
         cast: "Itadori Yuji, Fushiguro Megumi, Higuruma Hiromi",
         synopsis: "Cuộc chiến trí tuệ và lãnh địa đầy căng thẳng giữa Yuji và luật sư thiên tài Higuruma."
+      },
+      {
+        id: "room-7",
+        number: "Phòng Đôi 💕",
+        movieTitle: "Phòng Xem Phim Đôi VIP (2 Người • Có Mic)",
+        genre: "Couple Sweetbox • Thoại Micro Trực Tuyến",
+        duration: "24:00",
+        durationSec: 1440,
+        status: "showing",
+        isCoupleRoom: true,
+        maxSeats: 2,
+        isCustomStartZero: true,
+        youtubeId: "",
+        videoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 48 (Vietsub)Ani-One Vietnam.mp4")}`,
+        previewVideoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 48 (Vietsub)Ani-One Vietnam.mp4")}`,
+        poster: "https://upload.wikimedia.org/wikipedia/en/7/7a/Jujutsu_Kaisen_S3_V1_BD.png",
+        rankBadge: "💕 COUPLE • 2 NGƯỜI",
+        matchScore: "100% Riêng Tư",
+        ageRating: "SWEETBOX",
+        quality: "VOICE + SYNC",
+        cast: "2 Ghế Sweetbox Đôi • Micro Trực Tuyến",
+        synopsis: "Phòng chiếu riêng tư chỉ dành cho tối đa 2 người với 2 ghế Sweetbox Đôi cạnh nhau và micro nói chuyện trực tiếp trong lúc xem phim."
       }
     ];
 
@@ -3338,7 +3365,8 @@
       grid.innerHTML = rooms.map(room => {
         const seats = state.seatsByRoom[room.id] || {};
         const count = Object.keys(seats).length;
-        const percent = Math.min(100, Math.round((count / 48) * 100));
+        const maxCap = room.maxSeats || 48;
+        const percent = Math.min(100, Math.round((count / maxCap) * 100));
         const isShowing = room.status === "showing";
         const isLocked = Boolean(state.roomLocks[room.id]);
 
@@ -3360,7 +3388,7 @@
               </div>
 
               <div class="absolute top-3 right-3 px-2.5 py-1 rounded-xl bg-black/75 border border-white/15 text-xs font-bold text-amber-300">
-                <i class="fa-solid fa-users mr-1"></i>${count}/48 khán giả
+                <i class="fa-solid fa-users mr-1"></i>${count}/${maxCap} ${room.isCoupleRoom ? "người" : "khán giả"}
               </div>
 
               <div class="absolute bottom-3 inset-x-3">
@@ -3415,12 +3443,21 @@
         return;
       }
 
+      const room = getEffectiveRoom(roomId);
+      if (room.isCoupleRoom) {
+        const currentSeats = state.seatsByRoom[roomId] || {};
+        const otherRealCount = Object.values(currentSeats).filter(s => s && s.isReal && s.uid !== state.uid).length;
+        if (otherRealCount >= 2) {
+          showToast("💕 Phòng Đôi VIP đã đủ 2 người rồi! Vui lòng chọn phòng khác.", "error");
+          return;
+        }
+      }
+
       // Tắt video preview ở Hero Billboard khi vào trong phòng rạp
       const heroVid = document.getElementById("hero-bg-video");
       if (heroVid) heroVid.pause();
 
       state.currentRoomId = roomId;
-      const room = getEffectiveRoom(roomId);
 
       document.getElementById("lobby-view").classList.add("hidden");
       document.getElementById("room-view").classList.remove("hidden");
@@ -3445,6 +3482,7 @@
       setupRoomVideoPlayer(room);
       subscribeRoomChat(roomId);
       subscribeRoomSync(roomId);
+      subscribeRoomVoice(roomId);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
@@ -3457,6 +3495,7 @@
         }
         clearMySeatFromRTDB();
         releaseMyHostStatus();
+        cleanupRoomVoice(oldRoomId);
       }
       currentRoomHost = null;
       renderRoomHostBadge();
@@ -3635,8 +3674,17 @@
       if (standBtn) standBtn.classList.toggle("hidden", !mySeat);
 
       const now = Date.now();
+      const effectiveRoom = getEffectiveRoom(roomId);
+      const isCoupleRoomOnly = Boolean(effectiveRoom && effectiveRoom.isCoupleRoom);
+      const rowsToRender = isCoupleRoomOnly ? ["F"] : ROWS;
 
-      container.innerHTML = ROWS.map(row => {
+      const coupleBanner = isCoupleRoomOnly ? `
+        <div class="mb-3 px-3 py-2 rounded-2xl bg-gradient-to-r from-rose-950/70 via-pink-900/50 to-rose-950/70 border border-pink-500/35 text-center text-[11px] font-bold text-pink-200">
+          💕 Phòng Sweetbox Đôi VIP (Tối đa 2 người) • Bấm <span class="text-emerald-300 font-black">🎙️ Bật Mic</span> ở thanh trên để trò chuyện trực tiếp!
+        </div>
+      ` : "";
+
+      container.innerHTML = coupleBanner + rowsToRender.map(row => {
         const isVIP = row === "D" || row === "E";
         const isCouple = row === "F";
 
@@ -3705,8 +3753,8 @@
         return `
           <div class="seat-row-tier flex items-center gap-2" data-row="${row}">
             <span class="w-6 text-center text-xs font-black ${isCouple ? 'text-amber-400' : isVIP ? 'text-rose-400' : 'text-slate-500'}">${row}</span>
-            <div class="flex-1 flex items-center gap-1.5">
-              ${renderSideSeats([1, 2, 3, 4])}
+            <div class="flex-1 flex items-center gap-1.5 ${isCoupleRoomOnly ? 'max-w-[140px] ml-auto' : ''}">
+              ${renderSideSeats(isCoupleRoomOnly ? [4] : [1, 2, 3, 4])}
             </div>
 
             <!-- Cầu thang lối đi chính giữa có đèn LED xanh lá giống ảnh mẫu -->
@@ -3716,8 +3764,8 @@
               <div class="stair-strip"><span class="led-dot"></span><span class="led-dot"></span></div>
             </div>
 
-            <div class="flex-1 flex items-center gap-1.5">
-              ${renderSideSeats([5, 6, 7, 8])}
+            <div class="flex-1 flex items-center gap-1.5 ${isCoupleRoomOnly ? 'max-w-[140px] mr-auto' : ''}">
+              ${renderSideSeats(isCoupleRoomOnly ? [5] : [5, 6, 7, 8])}
             </div>
             <span class="w-6 text-center text-xs font-black ${isCouple ? 'text-amber-400' : isVIP ? 'text-rose-400' : 'text-slate-500'}">${row}</span>
           </div>
@@ -6303,6 +6351,289 @@
       };
     }
 
+    // =========================================================
+    // 7B. MICRO TRỰC TUYẾN WEBRTC QUA FIREBASE RTDB
+    // =========================================================
+    const VOICE_ICE_CONFIG = {
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun1.l.google.com:19302" }
+      ]
+    };
+    let localVoiceStream = null;
+    let voiceMicActive = false;
+    let voicePeers = {}; // { [remoteUid]: { pc, audioEl, pendingIce: [] } }
+    let roomVoiceUnsub = null;
+    let myVoiceDisconnect = null;
+
+    function updateVoiceMicButtonUI() {
+      const btn = document.getElementById("btn-room-mic");
+      if (!btn) return;
+      if (voiceMicActive) {
+        btn.innerHTML = `<i class="fa-solid fa-microphone mr-1 animate-pulse"></i>Mic Đang Bật`;
+        btn.className = "px-2 py-0.5 rounded-lg bg-emerald-500 text-slate-950 font-black text-[11px] shadow cursor-pointer";
+      } else {
+        btn.innerHTML = `<i class="fa-solid fa-microphone-slash mr-1"></i>Bật Mic`;
+        btn.className = "px-2 py-0.5 rounded-lg bg-stone-800 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[11px] transition cursor-pointer";
+      }
+    }
+
+    function closeVoicePeer(remoteUid) {
+      const entry = voicePeers[remoteUid];
+      if (!entry) return;
+      try { entry.pc.close(); } catch (e) {}
+      if (entry.audioEl) {
+        entry.audioEl.srcObject = null;
+        entry.audioEl.remove();
+      }
+      delete voicePeers[remoteUid];
+    }
+
+    function getOrCreateVoicePeer(roomId, remoteUid) {
+      if (voicePeers[remoteUid]) return voicePeers[remoteUid];
+      const pc = new RTCPeerConnection(VOICE_ICE_CONFIG);
+      const container = document.getElementById("voice-audio-container");
+      const audioEl = document.createElement("audio");
+      audioEl.autoplay = true;
+      audioEl.playsInline = true;
+      if (container) container.appendChild(audioEl);
+
+      const entry = { pc, audioEl, pendingIce: [], makingOffer: false };
+      voicePeers[remoteUid] = entry;
+
+      if (localVoiceStream) {
+        localVoiceStream.getAudioTracks().forEach(track => {
+          pc.addTrack(track, localVoiceStream);
+        });
+      } else {
+        pc.addTransceiver("audio", { direction: "recvonly" });
+      }
+
+      pc.ontrack = (event) => {
+        if (event.streams && event.streams[0]) {
+          audioEl.srcObject = event.streams[0];
+          audioEl.play().catch(() => {});
+        }
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && rtdb && rtdbMod) {
+          rtdbMod.push(
+            rtdbMod.ref(rtdb, `voice/${roomId}/ice/${remoteUid}/${state.uid}`),
+            event.candidate.toJSON()
+          ).catch(() => {});
+        }
+      };
+
+      return entry;
+    }
+
+    async function rebuildVoiceConnections(roomId, peersMap) {
+      Object.keys(voicePeers).forEach(rUid => {
+        if (!peersMap[rUid]) closeVoicePeer(rUid);
+      });
+      for (const [rUid, info] of Object.entries(peersMap)) {
+        if (!info || rUid === state.uid) continue;
+        if (!voicePeers[rUid] && state.uid < rUid) {
+          try {
+            const entry = getOrCreateVoicePeer(roomId, rUid);
+            const offer = await entry.pc.createOffer();
+            await entry.pc.setLocalDescription(offer);
+            await rtdbMod.set(rtdbMod.ref(rtdb, `voice/${roomId}/signals/${rUid}/${state.uid}`), {
+              type: "offer",
+              sdp: offer.sdp,
+              from: state.uid,
+              ts: Date.now()
+            });
+          } catch (e) {}
+        }
+      }
+    }
+
+    function subscribeRoomVoice(roomId) {
+      if (roomVoiceUnsub) {
+        roomVoiceUnsub();
+        roomVoiceUnsub = null;
+      }
+      if (!rtdb || !rtdbMod || !roomId) return;
+
+      const myPeerRef = rtdbMod.ref(rtdb, `voice/${roomId}/peers/${state.uid}`);
+      myVoiceDisconnect = rtdbMod.onDisconnect(myPeerRef);
+      myVoiceDisconnect.remove().catch(() => {});
+      rtdbMod.set(myPeerRef, {
+        uid: state.uid,
+        userName: state.userName,
+        micOn: voiceMicActive,
+        updatedAt: Date.now()
+      }).catch(() => {});
+
+      const seenMicToast = {};
+      const unsubPeers = rtdbMod.onValue(rtdbMod.ref(rtdb, `voice/${roomId}/peers`), (snap) => {
+        const peersMap = snap.val() || {};
+        Object.entries(peersMap).forEach(([rUid, info]) => {
+          if (rUid !== state.uid && info && info.micOn && !seenMicToast[rUid]) {
+            seenMicToast[rUid] = true;
+            showToast(`🎙️ ${info.userName} vừa bật micro nói chuyện!`, "info");
+          } else if (info && !info.micOn) {
+            seenMicToast[rUid] = false;
+          }
+        });
+        rebuildVoiceConnections(roomId, peersMap);
+      }, () => {});
+
+      const handledSignals = {};
+      const unsubSignals = rtdbMod.onValue(rtdbMod.ref(rtdb, `voice/${roomId}/signals/${state.uid}`), async (snap) => {
+        const signals = snap.val() || {};
+        for (const [fromUid, sig] of Object.entries(signals)) {
+          if (!sig || !sig.type || !sig.sdp) continue;
+          const sigKey = `${fromUid}_${sig.type}_${sig.ts || ""}`;
+          if (handledSignals[sigKey]) continue;
+          handledSignals[sigKey] = true;
+          try {
+            if (sig.type === "offer") {
+              closeVoicePeer(fromUid);
+              const entry = getOrCreateVoicePeer(roomId, fromUid);
+              await entry.pc.setRemoteDescription(new RTCSessionDescription({ type: "offer", sdp: sig.sdp }));
+              for (const c of entry.pendingIce) {
+                await entry.pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+              }
+              entry.pendingIce = [];
+              const answer = await entry.pc.createAnswer();
+              await entry.pc.setLocalDescription(answer);
+              await rtdbMod.set(rtdbMod.ref(rtdb, `voice/${roomId}/signals/${fromUid}/${state.uid}`), {
+                type: "answer",
+                sdp: answer.sdp,
+                from: state.uid,
+                ts: Date.now()
+              });
+            } else if (sig.type === "answer") {
+              const entry = voicePeers[fromUid];
+              if (entry && entry.pc.signalingState === "have-local-offer") {
+                await entry.pc.setRemoteDescription(new RTCSessionDescription({ type: "answer", sdp: sig.sdp }));
+                for (const c of entry.pendingIce) {
+                  await entry.pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+                }
+                entry.pendingIce = [];
+              }
+            }
+          } catch (e) {}
+        }
+      }, () => {});
+
+      const handledIce = {};
+      const unsubIce = rtdbMod.onValue(rtdbMod.ref(rtdb, `voice/${roomId}/ice/${state.uid}`), async (snap) => {
+        const byPeer = snap.val() || {};
+        for (const [fromUid, candMap] of Object.entries(byPeer)) {
+          if (!candMap) continue;
+          for (const [cId, cand] of Object.entries(candMap)) {
+            if (handledIce[cId] || !cand) continue;
+            handledIce[cId] = true;
+            const entry = voicePeers[fromUid];
+            if (entry) {
+              if (entry.pc.remoteDescription) {
+                await entry.pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+              } else {
+                entry.pendingIce.push(cand);
+              }
+            }
+          }
+        }
+      }, () => {});
+
+      roomVoiceUnsub = () => {
+        unsubPeers();
+        unsubSignals();
+        unsubIce();
+      };
+    }
+
+    function cleanupRoomVoice(roomId) {
+      if (roomVoiceUnsub) {
+        roomVoiceUnsub();
+        roomVoiceUnsub = null;
+      }
+      Object.keys(voicePeers).forEach(closeVoicePeer);
+      if (localVoiceStream) {
+        localVoiceStream.getTracks().forEach(t => t.stop());
+        localVoiceStream = null;
+      }
+      voiceMicActive = false;
+      updateVoiceMicButtonUI();
+      if (myVoiceDisconnect) {
+        try { myVoiceDisconnect.cancel(); } catch (e) {}
+        myVoiceDisconnect = null;
+      }
+      if (roomId && rtdb && rtdbMod) {
+        try { rtdbMod.remove(rtdbMod.ref(rtdb, `voice/${roomId}/peers/${state.uid}`)); } catch (e) {}
+        try { rtdbMod.remove(rtdbMod.ref(rtdb, `voice/${roomId}/signals/${state.uid}`)); } catch (e) {}
+        try { rtdbMod.remove(rtdbMod.ref(rtdb, `voice/${roomId}/ice/${state.uid}`)); } catch (e) {}
+      }
+    }
+
+    async function toggleVoiceMic() {
+      if (!state.currentRoomId) return;
+      const roomId = state.currentRoomId;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast("Trình duyệt này không hỗ trợ micro trực tuyến (cần HTTPS).", "error");
+        return;
+      }
+      if (voiceMicActive) {
+        voiceMicActive = false;
+        if (localVoiceStream) {
+          localVoiceStream.getAudioTracks().forEach(t => { t.enabled = false; });
+        }
+        updateVoiceMicButtonUI();
+        if (rtdb && rtdbMod) {
+          rtdbMod.update(rtdbMod.ref(rtdb, `voice/${roomId}/peers/${state.uid}`), { micOn: false, updatedAt: Date.now() }).catch(() => {});
+        }
+        showToast("🔇 Đã tắt micro của bạn.", "info");
+        return;
+      }
+
+      try {
+        const hadStreamBefore = Boolean(localVoiceStream);
+        if (!localVoiceStream) {
+          localVoiceStream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+          });
+        }
+        localVoiceStream.getAudioTracks().forEach(t => { t.enabled = true; });
+        voiceMicActive = true;
+        updateVoiceMicButtonUI();
+
+        if (!hadStreamBefore && rtdb && rtdbMod) {
+          Object.keys(voicePeers).forEach(closeVoicePeer);
+          const snap = await rtdbMod.get(rtdbMod.ref(rtdb, `voice/${roomId}/peers`));
+          const peersMap = snap.val() || {};
+          for (const rUid of Object.keys(peersMap)) {
+            if (rUid !== state.uid) {
+              const entry = getOrCreateVoicePeer(roomId, rUid);
+              const offer = await entry.pc.createOffer();
+              await entry.pc.setLocalDescription(offer);
+              await rtdbMod.set(rtdbMod.ref(rtdb, `voice/${roomId}/signals/${rUid}/${state.uid}`), {
+                type: "offer",
+                sdp: offer.sdp,
+                from: state.uid,
+                ts: Date.now()
+              });
+            }
+          }
+        }
+
+        if (rtdb && rtdbMod) {
+          rtdbMod.set(rtdbMod.ref(rtdb, `voice/${roomId}/peers/${state.uid}`), {
+            uid: state.uid,
+            userName: state.userName,
+            micOn: true,
+            updatedAt: Date.now()
+          }).catch(() => {});
+        }
+        showToast("🎙️ Micro đã bật! Người cùng phòng có thể nghe thấy bạn nói.", "success");
+      } catch (e) {
+        showToast("Bạn chưa cấp quyền sử dụng Micro cho trình duyệt!", "error");
+      }
+    }
+
     async function initFirebase() {
       try {
         const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
@@ -6315,10 +6646,12 @@
         window.addEventListener("pagehide", () => {
           clearMySeatFromRTDB();
           releaseMyHostStatus();
+          cleanupRoomVoice(state.currentRoomId);
         });
         window.addEventListener("beforeunload", () => {
           clearMySeatFromRTDB();
           releaseMyHostStatus();
+          cleanupRoomVoice(state.currentRoomId);
         });
 
         // Lắng nghe ghế ngồi của cả 6 phòng theo thời gian thực + phát hiện vào/ra phòng
@@ -6379,6 +6712,7 @@
           if (mySeat) syncMySeatToRTDB(state.currentRoomId, mySeat);
           subscribeRoomChat(state.currentRoomId);
           subscribeRoomSync(state.currentRoomId);
+          subscribeRoomVoice(state.currentRoomId);
         }
       } catch (e) {
         // Hoạt động mượt mà ở chế độ Local Realtime nếu mất mạng
@@ -7188,6 +7522,7 @@
       seekVideo,
       syncLiveTime,
       toggleRoomHost,
+      toggleVoiceMic,
       cycleSubtitleMode,
       toggleSubtitleSettingsPanel,
       toggleAutoSubtitleBySeat,
