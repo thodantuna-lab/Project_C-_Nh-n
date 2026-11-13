@@ -801,22 +801,17 @@
       transform: translateY(-2px) scale(1.06);
     }
 
-    /* Chế độ Toàn màn hình tương thích 100% iPhone Safari & Android (giữ nguyên phụ đề Tiếng Việt & tự xoay ngang) */
+    /* Chế độ Toàn màn hình tương thích 100% iPhone Safari & Android (đưa #cinema-screen ra ngoài body để không bị che) */
     body.mobile-cinema-fullscreen {
       overflow: hidden !important;
       background: #000 !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
-    body.mobile-cinema-fullscreen #room-view,
-    body.mobile-cinema-fullscreen .cinema-hall,
-    body.mobile-cinema-fullscreen #screen-stage-box,
-    body.mobile-cinema-fullscreen .lotte-screen-frame {
-      transform: none !important;
-      perspective: none !important;
-      transform-style: flat !important;
-      filter: none !important;
-      overflow: visible !important;
+    body.mobile-cinema-fullscreen > *:not(#cinema-screen) {
+      display: none !important;
     }
-    body.mobile-cinema-fullscreen #cinema-screen {
+    body.mobile-cinema-fullscreen > #cinema-screen {
       position: fixed !important;
       inset: 0 !important;
       width: 100vw !important;
@@ -824,13 +819,13 @@
       max-width: none !important;
       max-height: none !important;
       aspect-ratio: auto !important;
-      z-index: 9999 !important;
+      z-index: 99999 !important;
       border-radius: 0 !important;
       background: #000 !important;
       transform: none !important;
     }
     @media (max-width: 900px) and (orientation: portrait) {
-      body.mobile-cinema-fullscreen #cinema-screen {
+      body.mobile-cinema-fullscreen > #cinema-screen {
         top: 50% !important;
         left: 50% !important;
         right: auto !important;
@@ -840,12 +835,12 @@
         transform: translate(-50%, -50%) rotate(90deg) !important;
       }
     }
-    body.mobile-cinema-fullscreen #cinema-screen .imax-curve-arch-top,
-    body.mobile-cinema-fullscreen #cinema-screen .imax-curve-arch-bottom,
-    body.mobile-cinema-fullscreen #cinema-screen .imax-screen-sheen {
+    body.mobile-cinema-fullscreen > #cinema-screen .imax-curve-arch-top,
+    body.mobile-cinema-fullscreen > #cinema-screen .imax-curve-arch-bottom,
+    body.mobile-cinema-fullscreen > #cinema-screen .imax-screen-sheen {
       display: none !important;
     }
-    body.mobile-cinema-fullscreen #btn-exit-mobile-fs {
+    body.mobile-cinema-fullscreen > #cinema-screen #btn-exit-mobile-fs {
       display: flex !important;
     }
 
@@ -1509,6 +1504,7 @@
             <div class="lotte-screen-frame">
               <div class="imax-wing-l"></div>
               <div class="imax-wing-r"></div>
+              <span id="cinema-screen-placeholder" class="hidden"></span>
               <div id="cinema-screen"
                    ondragover="window.appActions.onDragOverScreen(event)"
                    ondrop="window.appActions.onDropScreen(event)"
@@ -4390,6 +4386,7 @@
 
     async function toggleFullscreen() {
       const screenEl = document.getElementById("cinema-screen");
+      const placeholder = document.getElementById("cinema-screen-placeholder");
       if (!screenEl) return;
 
       const isCssFs = document.body.classList.contains("mobile-cinema-fullscreen");
@@ -4397,6 +4394,9 @@
 
       if (isCssFs) {
         document.body.classList.remove("mobile-cinema-fullscreen");
+        if (placeholder && placeholder.parentNode) {
+          placeholder.parentNode.insertBefore(screenEl, placeholder.nextSibling);
+        }
         try { window.screen?.orientation?.unlock?.(); } catch (e) {}
         return;
       }
@@ -4420,7 +4420,8 @@
         } catch (e) {}
       }
 
-      // Chế độ Toàn màn hình xoay ngang tự động (hoạt động mượt trên cả iPhone Safari & Android kể cả khi khóa xoay)
+      // Đưa #cinema-screen trực tiếp ra ngoài body để không bị bất kỳ thanh tiêu đề hay hiệu ứng 3D nào che
+      document.body.appendChild(screenEl);
       document.body.classList.add("mobile-cinema-fullscreen");
       try { await window.screen?.orientation?.lock?.("landscape"); } catch (e) {}
     }
