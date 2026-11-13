@@ -3022,11 +3022,17 @@
     ];
 
     // Biến kết nối Firebase (nếu có)
+    const RTDB_URL = "https://cineverse-ea320-default-rtdb.asia-southeast1.firebasedatabase.app";
     let db = null;
     let fb = null;
+    let rtdb = null;
+    let rtdbMod = null;
     let currentUser = null;
     let appId = "cineverse-lotte-pov";
     let roomChatUnsub = null;
+    let myActiveSeatPath = null;
+    let myActiveSeatDisconnect = null;
+    let hasSyncedInitialSeats = false;
 
     function escapeHTML(str = "") {
       return String(str)
@@ -3417,6 +3423,14 @@
     }
 
     function leaveRoom() {
+      const oldRoomId = state.currentRoomId;
+      if (oldRoomId) {
+        const mySeat = getMySeatInRoom(oldRoomId);
+        if (mySeat && state.seatsByRoom[oldRoomId]) {
+          delete state.seatsByRoom[oldRoomId][mySeat];
+        }
+        clearMySeatFromRTDB();
+      }
       stopRoomVideoPlayer();
       if (state.dimmed) {
         toggleDimLights();
@@ -3487,6 +3501,7 @@
         updateRoomHeaderUI();
         applySubtitlePositionAndSize();
         showToast(`Bạn đã đứng dậy khỏi ghế ${seatId}.`, "info");
+        clearMySeatFromRTDB();
         if (db && fb && currentUser) {
           try {
             await fb.deleteDoc(fb.doc(db, "artifacts", appId, "public", "data", `seats_${roomId}`, seatId));
@@ -3510,6 +3525,7 @@
         uid: state.uid,
         userName: state.userName,
         snack: state.mySnack || "🍿🥤",
+        isReal: true,
         updatedAt: Date.now()
       };
 
@@ -3523,6 +3539,8 @@
         autoSyncMemoryCapsule(roomId, seatId, null);
         showToast(`🪑 Bạn (${state.userName}) đã ngồi vào ghế ${seatId}! Đã đồng bộ vào Thẻ Ký Ức Điện Ảnh NFT.`, "success");
       }
+
+      syncMySeatToRTDB(roomId, seatId);
 
       if (db && fb && currentUser) {
         try {
@@ -5018,6 +5036,12 @@
         }
       }
 
+      if (rtdb && rtdbMod) {
+        try {
+          await rtdbMod.push(rtdbMod.ref(rtdb, `chat/${roomId}`), msg);
+        } catch (e) {}
+      }
+
       if (db && fb && currentUser) {
         try {
           await fb.addDoc(fb.collection(db, "artifacts", appId, "public", "data", `chat_${roomId}`), msg);
@@ -5856,86 +5880,158 @@
     }
 
     // =========================================================
-    // 7. ĐỒNG BỘ FIREBASE REALTIME (NẾU CÓ CẤU HÌNH)
+    // 7. ĐỒNG BỘ FIREBASE REALTIME DATABASE (MULTIPLAYER + ONDISCONNECT)
     // =========================================================
+    async function syncMySeatToRTDB(roomId, seatId) {
+      if (!rtdb || !rtdbMod) return;
+      const targetPath = roomId && seatId ? `seats/${roomId}/${seatId}` : null;
+      if (myActiveSeatDisconnect) {
+        try { await myActiveSeatDisconnect.cancel(); } catch (e) {}
+        myActiveSeatDisconnect = null;
+      }
+      if (myActiveSeatPath && myActiveSeatPath !== targetPath) {
+        try { await rtdbMod.remove(rtdbMod.ref(rtdb, myActiveSeatPath)); } catch (e) {}
+      }
+      if (!targetPath) {
+        myActiveSeatPath = null;
+        return;
+      }
+      try {
+        const seatRef = rtdbMod.ref(rtdb, targetPath);
+        myActiveSeatPath = targetPath;
+        myActiveSeatDisconnect = rtdbMod.onDisconnect(seatRef);
+        await myActiveSeatDisconnect.remove();
+        await rtdbMod.set(seatRef, {
+          uid: state.uid,
+          userName: state.userName,
+          snack: state.mySnack || "🍿🥤",
+          isReal: true,
+          updatedAt: Date.now()
+        });
+      } catch (e) {}
+    }
+
+    function clearMySeatFromRTDB() {
+      if (!rtdb || !rtdbMod) {
+        myActiveSeatPath = null;
+        myActiveSeatDisconnect = null;
+        return;
+      }
+      if (myActiveSeatDisconnect) {
+        try { myActiveSeatDisconnect.cancel(); } catch (e) {}
+        myActiveSeatDisconnect = null;
+      }
+      if (myActiveSeatPath) {
+        try { rtdbMod.remove(rtdbMod.ref(rtdb, myActiveSeatPath)); } catch (e) {}
+        myActiveSeatPath = null;
+      }
+    }
+
     function subscribeRoomChat(roomId) {
-      if (!db || !fb || !currentUser) return;
-      if (roomChatUnsub) roomChatUnsub();
-      roomChatUnsub = fb.onSnapshot(
-        fb.collection(db, "artifacts", appId, "public", "data", `chat_${roomId}`),
-        (snap) => {
-          snap.docChanges().forEach(change => {
-            if (change.type === "added") {
-              const data = change.doc.data();
-              if (!state.chatByRoom[roomId]) state.chatByRoom[roomId] = [];
-              const exists = state.chatByRoom[roomId].some(m => m.id === data.id);
-              if (!exists) {
-                state.chatByRoom[roomId].push(data);
-                state.chatByRoom[roomId].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-                if (state.currentRoomId === roomId) {
-                  renderChatMessages();
-                  triggerSeatBubble(roomId, data.seatId || "F4", data.userName, data.text, data.uid === state.uid);
-                }
-              }
+      if (roomChatUnsub) {
+        roomChatUnsub();
+        roomChatUnsub = null;
+      }
+      if (!rtdb || !rtdbMod) return;
+      const chatRef = rtdbMod.query(rtdbMod.ref(rtdb, `chat/${roomId}`), rtdbMod.limitToLast(60));
+      roomChatUnsub = rtdbMod.onValue(chatRef, (snap) => {
+        const val = snap.val();
+        if (!val) return;
+        if (!state.chatByRoom[roomId]) state.chatByRoom[roomId] = [];
+        let changed = false;
+        const now = Date.now();
+        Object.values(val).forEach(data => {
+          if (!data || !data.id) return;
+          const exists = state.chatByRoom[roomId].some(m => m.id === data.id);
+          if (!exists) {
+            state.chatByRoom[roomId].push(data);
+            changed = true;
+            if (state.currentRoomId === roomId && data.uid !== state.uid && now - (data.createdAt || 0) < 15000) {
+              triggerSeatBubble(roomId, data.seatId || "F4", data.userName, data.text, false);
             }
-          });
-        },
-        () => {}
-      );
+          }
+        });
+        if (changed) {
+          state.chatByRoom[roomId].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          if (state.currentRoomId === roomId) {
+            renderChatMessages();
+          }
+        }
+      }, () => {});
     }
 
     async function initFirebase() {
       try {
-        if (typeof __firebase_config === "undefined" || !__firebase_config) return;
-        const config = JSON.parse(__firebase_config);
-        if (!config || !config.apiKey) return;
-
         const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-        const { getAuth, signInAnonymously, signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
-        const firestoreMod = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+        const databaseMod = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js");
 
-        const app = initializeApp(config);
-        const auth = getAuth(app);
-        db = firestoreMod.getFirestore(app);
-        fb = firestoreMod;
-        if (typeof __app_id !== "undefined" && __app_id) appId = __app_id;
+        const app = initializeApp({ databaseURL: RTDB_URL });
+        rtdb = databaseMod.getDatabase(app);
+        rtdbMod = databaseMod;
 
-        if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-        currentUser = auth.currentUser;
+        window.addEventListener("pagehide", clearMySeatFromRTDB);
+        window.addEventListener("beforeunload", clearMySeatFromRTDB);
 
-        // Lắng nghe ghế ngồi của cả 6 phòng theo thời gian thực
-        DEFAULT_ROOMS.forEach(r => {
-          fb.onSnapshot(
-            fb.collection(db, "artifacts", appId, "public", "data", `seats_${r.id}`),
-            (snap) => {
-              const nextSeats = { ...(state.seatsByRoom[r.id] || {}) };
-              snap.docChanges().forEach(change => {
-                const seatId = change.doc.id;
-                if (change.type === "removed") {
-                  delete nextSeats[seatId];
-                } else {
-                  nextSeats[seatId] = change.doc.data();
+        // Lắng nghe ghế ngồi của cả 6 phòng theo thời gian thực + phát hiện vào/ra phòng
+        rtdbMod.onValue(rtdbMod.ref(rtdb, "seats"), (snap) => {
+          const allRemote = snap.val() || {};
+          DEFAULT_ROOMS.forEach(r => {
+            const prevRoom = state.seatsByRoom[r.id] || {};
+            const remoteRoom = allRemote[r.id] || {};
+
+            if (hasSyncedInitialSeats && state.currentRoomId === r.id) {
+              Object.entries(remoteRoom).forEach(([seatId, info]) => {
+                if (info && info.isReal && info.uid !== state.uid) {
+                  const prevInfo = prevRoom[seatId];
+                  if (!prevInfo || prevInfo.uid !== info.uid) {
+                    showToast(`👋 ${info.userName} vừa vào ngồi ghế ${seatId}!`, "success");
+                  }
                 }
               });
-              state.seatsByRoom[r.id] = nextSeats;
-              if (state.currentRoomId === r.id) {
-                renderSeatingMap();
-                renderAudienceList();
-                updateRoomHeaderUI();
-              } else if (!state.currentRoomId) {
-                renderHeroBillboard();
-                renderLobby();
+              Object.entries(prevRoom).forEach(([seatId, prevInfo]) => {
+                if (prevInfo && prevInfo.isReal && prevInfo.uid !== state.uid) {
+                  const curInfo = remoteRoom[seatId];
+                  if (!curInfo || curInfo.uid !== prevInfo.uid) {
+                    showToast(`🚪 ${prevInfo.userName} (ghế ${seatId}) vừa rời phòng!`, "info");
+                  }
+                }
+              });
+            }
+
+            const merged = {};
+            Object.entries(prevRoom).forEach(([seatId, info]) => {
+              if (info && !info.isReal && !remoteRoom[seatId]) {
+                merged[seatId] = info;
               }
-            },
-            () => {}
-          );
-        });
+            });
+            Object.entries(remoteRoom).forEach(([seatId, info]) => {
+              if (info && info.uid) {
+                merged[seatId] = info;
+              }
+            });
+            state.seatsByRoom[r.id] = merged;
+          });
+
+          hasSyncedInitialSeats = true;
+
+          if (state.currentRoomId) {
+            renderSeatingMap();
+            renderAudienceList();
+            updateRoomHeaderUI();
+          } else {
+            renderHeroBillboard();
+            renderLobby();
+          }
+        }, () => {});
+
+        // Nếu người dùng đã vào phòng trước khi Firebase SDK tải xong thì đồng bộ ngay
+        if (state.currentRoomId) {
+          const mySeat = getMySeatInRoom(state.currentRoomId);
+          if (mySeat) syncMySeatToRTDB(state.currentRoomId, mySeat);
+          subscribeRoomChat(state.currentRoomId);
+        }
       } catch (e) {
-        // Hoạt động mượt mà ở chế độ Local Realtime nếu môi trường không có Firebase
+        // Hoạt động mượt mà ở chế độ Local Realtime nếu mất mạng
       }
     }
 
