@@ -801,23 +801,48 @@
       transform: translateY(-2px) scale(1.06);
     }
 
-    /* Chế độ Toàn màn hình tương thích 100% iPhone Safari & Android (giữ nguyên phụ đề Tiếng Việt) */
+    /* Chế độ Toàn màn hình tương thích 100% iPhone Safari & Android (giữ nguyên phụ đề Tiếng Việt & tự xoay ngang) */
     body.mobile-cinema-fullscreen {
       overflow: hidden !important;
+      background: #000 !important;
+    }
+    body.mobile-cinema-fullscreen #room-view,
+    body.mobile-cinema-fullscreen .cinema-hall,
+    body.mobile-cinema-fullscreen #screen-stage-box,
+    body.mobile-cinema-fullscreen .lotte-screen-frame {
+      transform: none !important;
+      perspective: none !important;
+      transform-style: flat !important;
+      filter: none !important;
+      overflow: visible !important;
     }
     body.mobile-cinema-fullscreen #cinema-screen {
       position: fixed !important;
       inset: 0 !important;
       width: 100vw !important;
       height: 100dvh !important;
+      max-width: none !important;
+      max-height: none !important;
       aspect-ratio: auto !important;
       z-index: 9999 !important;
       border-radius: 0 !important;
       background: #000 !important;
       transform: none !important;
     }
+    @media (max-width: 900px) and (orientation: portrait) {
+      body.mobile-cinema-fullscreen #cinema-screen {
+        top: 50% !important;
+        left: 50% !important;
+        right: auto !important;
+        bottom: auto !important;
+        width: 100dvh !important;
+        height: 100vw !important;
+        transform: translate(-50%, -50%) rotate(90deg) !important;
+      }
+    }
     body.mobile-cinema-fullscreen #cinema-screen .imax-curve-arch-top,
-    body.mobile-cinema-fullscreen #cinema-screen .imax-curve-arch-bottom {
+    body.mobile-cinema-fullscreen #cinema-screen .imax-curve-arch-bottom,
+    body.mobile-cinema-fullscreen #cinema-screen .imax-screen-sheen {
       display: none !important;
     }
     body.mobile-cinema-fullscreen #btn-exit-mobile-fs {
@@ -1496,7 +1521,7 @@
 
                 <!-- Nút thoát toàn màn hình cho iPhone / Android -->
                 <button type="button" id="btn-exit-mobile-fs" onclick="window.appActions.toggleFullscreen()"
-                  class="hidden fixed top-3 right-3 z-[10000] px-3 py-1.5 rounded-xl bg-black/75 hover:bg-rose-600 border border-white/25 text-white text-xs font-black items-center gap-1.5 shadow-2xl backdrop-blur-md cursor-pointer">
+                  class="hidden absolute top-3 right-3 z-[10000] px-3 py-1.5 rounded-xl bg-black/75 hover:bg-rose-600 border border-white/25 text-white text-xs font-black items-center gap-1.5 shadow-2xl backdrop-blur-md cursor-pointer">
                   <i class="fa-solid fa-compress"></i>
                   <span>Thu nhỏ</span>
                 </button>
@@ -4384,17 +4409,18 @@
         return;
       }
 
-      const reqFs = screenEl.requestFullscreen || screenEl.webkitRequestFullscreen;
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      const reqFs = !isIOS ? (screenEl.requestFullscreen || screenEl.webkitRequestFullscreen) : null;
+
       if (typeof reqFs === "function") {
         try {
           await reqFs.call(screenEl);
           try { await window.screen?.orientation?.lock?.("landscape"); } catch (e) {}
           return;
-        } catch (e) {
-          // Fallback sang chế độ Toàn màn hình CSS cho iPhone Safari / trình duyệt chặn requestFullscreen
-        }
+        } catch (e) {}
       }
 
+      // Chế độ Toàn màn hình xoay ngang tự động (hoạt động mượt trên cả iPhone Safari & Android kể cả khi khóa xoay)
       document.body.classList.add("mobile-cinema-fullscreen");
       try { await window.screen?.orientation?.lock?.("landscape"); } catch (e) {}
     }
