@@ -3797,14 +3797,16 @@
       if (room.hasLyrics) {
         return HA_ANH_TUAN_LYRICS;
       }
+      // Nếu phòng đang phát phim tùy chỉnh từ Kho Video / R2 / file máy (hoặc phim đã có Vietsub gốc) -> không lấy phụ đề của phim mặc định cũ đè lên
+      const isCustomMovie = Boolean(state.roomsCustom[room.id]);
+      const hasBakedVietsub = /vietsub/i.test(room.movieTitle || "");
+      if (isCustomMovie || hasBakedVietsub) {
+        return [];
+      }
       if (SUBTITLES_BY_ROOM[room.id]) {
         return SUBTITLES_BY_ROOM[room.id];
       }
-      return [
-        { time: 2.5, end: 6.8, vi: "— Chào mừng bạn đến với suất chiếu IMAX Laser 70mm.", en: "— Welcome to the IMAX Laser 70mm screening." },
-        { time: 10.5, end: 15.2, vi: "— Hãy lắng nghe từng lời thoại sống động khi nhân vật cất tiếng.", en: "— Listen to every vivid dialogue line as the characters speak." },
-        { time: 19.5, end: 24.5, vi: "— Khung cảnh hoàn toàn tĩnh lặng khi nhân vật ngừng nói.", en: "— The screen stays clean and silent whenever characters pause speaking." }
-      ];
+      return [];
     }
 
     function renderSubtitleAtTime(room, currentSec) {
@@ -3889,6 +3891,27 @@
     async function generateAISubtitlesNow() {
       if (!state.currentRoomId) return;
       const room = getEffectiveRoom(state.currentRoomId);
+      if (/vietsub/i.test(room.movieTitle || "")) {
+        delete state.customSubtitlesByRoom[room.id];
+        renderSubtitleAtTime(room, 0);
+        showToast("Video này đã có sẵn Vietsub gốc trên màn hình! Đã tắt lớp phụ đề đè để không bị che chữ.", "info");
+        return;
+      }
+
+      let apiKey = "";
+      try {
+        apiKey = localStorage.getItem("cineverse_gemini_key") || "";
+      } catch (e) {}
+      if (!apiKey) {
+        const entered = window.prompt("Nhập Gemini API Key của bạn để tạo phụ đề AI chuẩn cho phim này (bỏ trống để hủy):", "");
+        if (!entered || !entered.trim()) {
+          showToast("Chưa có Gemini API Key nên không tạo phụ đề giả tránh dịch sai nội dung.", "info");
+          return;
+        }
+        apiKey = entered.trim();
+        try { localStorage.setItem("cineverse_gemini_key", apiKey); } catch (e) {}
+      }
+
       const btn = document.getElementById("btn-ai-sub");
       if (btn) {
         btn.disabled = true;
@@ -3896,8 +3919,7 @@
       }
       showToast(`AI đang phân tích "${room.movieTitle}" để tạo phụ đề Tiếng Việt & Tiếng Anh...`, "info");
 
-      const apiKey = "";
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
 
       const payload = {
         contents: [{
@@ -3947,16 +3969,7 @@
           throw new Error("No AI candidates");
         }
       } catch (e) {
-        // Fallback tự động tạo phụ đề thoại nhân vật có khoảng nghỉ tự nhiên khi nhân vật không nói
-        state.customSubtitlesByRoom[room.id] = [
-          { time: 2.2, end: 6.5, vi: `— Mọi người nhìn lên màn hình kìa, tín hiệu đã kết nối!`, en: `— Everyone look at the screen, the signal is connected!` },
-          { time: 10.0, end: 14.8, vi: "— Chúng ta chỉ có một cơ hội duy nhất để vượt qua thử thách này.", en: "— We only have one single chance to overcome this challenge." },
-          { time: 18.5, end: 23.2, vi: "— Hãy giữ vững vị trí, đừng để bất kỳ ai bị bỏ lại phía sau!", en: "— Hold your positions, don't let anyone get left behind!" },
-          { time: 27.5, end: 32.5, vi: "— Tín hiệu phía trước đang mở ra, chuẩn bị tăng tốc ngay bây giờ!", en: "— The path ahead is opening up, prepare to accelerate right now!" },
-          { time: 37.0, end: 42.0, vi: "— Cuối cùng chúng ta cũng làm được rồi!", en: "— We finally made it together!" }
-        ];
-        if (state.subtitleMode === "off") state.subtitleMode = "vi";
-        showToast("Đã kích hoạt phụ đề thoại nhân vật tự động VI + EN!", "success");
+        showToast("Không gọi được Gemini AI (kiểm tra lại API Key hoặc mạng). Đã giữ nguyên màn hình sạch, không chèn phụ đề giả.", "error");
       } finally {
         if (btn) {
           btn.disabled = false;
@@ -4516,6 +4529,7 @@
       const targetRoomId = forceRoomId
         || (selectVal !== "current" ? selectVal : (state.currentRoomId || "room-1"));
 
+      delete state.customSubtitlesByRoom[targetRoomId];
       state.roomsCustom[targetRoomId] = {
         status: "showing",
         movieTitle: item.title,
