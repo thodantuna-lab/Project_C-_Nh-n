@@ -1997,10 +1997,11 @@
       </div>
       <p class="text-xs text-slate-300">Tên này sẽ hiển thị trực tiếp trên chiếc ghế bạn ngồi và trong kênh chat của phòng chiếu.</p>
       <input id="modal-name-input" type="text" maxlength="20" placeholder="Ví dụ: Minh Tuấn, Lan Anh..."
+        onkeydown="if(event.key==='Enter'){event.preventDefault();window.appActions.confirmNameModal();}"
         class="w-full px-4 py-2.5 rounded-xl bg-stone-950 border border-white/15 text-sm text-white font-bold focus:outline-none focus:border-amber-400" />
       <div class="flex justify-end gap-2 pt-2">
         <button type="button" onclick="window.appActions.closeNameModal()" class="px-4 py-2 rounded-xl bg-stone-800 text-slate-300 text-xs font-bold cursor-pointer">Hủy</button>
-        <button type="button" onclick="window.appActions.confirmNameModal()" class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold cursor-pointer">Lưu tên</button>
+        <button id="name-modal-confirm-btn" type="button" onclick="window.appActions.confirmNameModal()" class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold cursor-pointer">Lưu tên</button>
       </div>
     </div>
   </div>
@@ -2839,6 +2840,7 @@
     const state = {
       uid: "user_" + Math.random().toString(36).substring(2, 10),
       userName: loadSavedName() || ("Khán giả " + Math.floor(100 + Math.random() * 899)),
+      hasCustomName: Boolean(loadSavedName()),
       roomFilter: "all",
       searchQuery: "",
       currentRoomId: null,
@@ -3389,7 +3391,15 @@
     // =========================================================
     // 2. VÀO PHÒNG CHIẾU & RỜI PHÒNG CHIẾU
     // =========================================================
+    let pendingEnterRoomId = null;
+
     function enterRoom(roomId) {
+      if (!state.hasCustomName) {
+        pendingEnterRoomId = roomId;
+        openNameModal(true);
+        return;
+      }
+
       // Tắt video preview ở Hero Billboard khi vào trong phòng rạp
       const heroVid = document.getElementById("hero-bg-video");
       if (heroVid) heroVid.pause();
@@ -5700,8 +5710,9 @@
     // =========================================================
     async function applyNewUserName(newName) {
       const clean = (newName || "").trim();
-      if (!clean) return;
+      if (!clean) return false;
       state.userName = clean;
+      state.hasCustomName = true;
       saveStoredName(clean);
       updateNameUI();
 
@@ -5710,6 +5721,9 @@
         for (const [sId, info] of Object.entries(seats)) {
           if (info && info.uid === state.uid) {
             info.userName = clean;
+            if (rId === state.currentRoomId) {
+              syncMySeatToRTDB(rId, sId);
+            }
             if (db && fb && currentUser) {
               try {
                 await fb.setDoc(fb.doc(db, "artifacts", appId, "public", "data", `seats_${rId}`, sId), {
@@ -5728,6 +5742,7 @@
         if (state.sidebarTab === "trivia") renderTriviaPanel();
       }
       showToast(`Đã cập nhật tên của bạn thành: ${clean}`, "success");
+      return true;
     }
 
     function saveInlineName() {
@@ -5735,19 +5750,40 @@
       applyNewUserName(val);
     }
 
-    function openNameModal() {
+    function openNameModal(requireForRoom = false) {
       updateNameUI();
+      const input = document.getElementById("modal-name-input");
+      const btn = document.getElementById("name-modal-confirm-btn");
+      if (requireForRoom) {
+        if (input) input.value = "";
+        if (btn) btn.textContent = "Vào Rạp & Chọn Ghế";
+      } else {
+        if (btn) btn.textContent = "Lưu tên";
+      }
       document.getElementById("name-modal")?.classList.remove("hidden");
+      setTimeout(() => input?.focus(), 60);
     }
 
     function closeNameModal() {
+      pendingEnterRoomId = null;
       document.getElementById("name-modal")?.classList.add("hidden");
     }
 
-    function confirmNameModal() {
-      const val = document.getElementById("modal-name-input")?.value;
-      applyNewUserName(val);
-      closeNameModal();
+    async function confirmNameModal() {
+      const input = document.getElementById("modal-name-input");
+      const val = (input?.value || "").trim();
+      if (!val) {
+        showToast("Vui lòng nhập tên của bạn trước khi vào phòng!", "error");
+        input?.focus();
+        return;
+      }
+      await applyNewUserName(val);
+      const targetRoom = pendingEnterRoomId;
+      pendingEnterRoomId = null;
+      document.getElementById("name-modal")?.classList.add("hidden");
+      if (targetRoom) {
+        enterRoom(targetRoom);
+      }
     }
 
     function openCustomVideoModal() {
