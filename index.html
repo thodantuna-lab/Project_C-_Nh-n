@@ -2512,12 +2512,12 @@
 
     // Bản nhạc / Bài hát OST đặc trưng đang phát ở mỗi phòng chiếu
     const ROOM_SOUNDTRACKS = {
-      "room-1": "OST: Celestial Imoogi & Dragon Pearl Theme (IMAX 70mm)",
-      "room-2": "Hà Anh Tuấn - Tháng Tư Là Lời Nói Dối Của Em (Official Audio)",
-      "room-3": "Tears of Steel - Final Memory Synthwave OST",
-      "room-4": "Sintel - I Move On (Original Symphonic Score)",
-      "room-5": "Big Buck Bunny - Spring Forest Orchestra",
-      "room-6": "Elephants Dream - Proog's Machine Symphony"
+      "room-1": "Godzilla vs. Kong (2021) - Main Theme OST (Tom Holkenborg)",
+      "room-2": "Vùng Đất Quỷ Dữ 2026 (Resident Evil 2026) - Original Score",
+      "room-3": "Jujutsu Kaisen: Culling Game - Special Opening Theme",
+      "room-4": "Jujutsu Kaisen: Culling Game - Original Battle OST",
+      "room-5": "Jujutsu Kaisen: Culling Game - Domain Expansion Score",
+      "room-6": "Jujutsu Kaisen: Culling Game - Ending Theme"
     };
 
     const BOOKING_SHOWTIMES = [
@@ -2581,122 +2581,127 @@
       } catch (e) {}
     }
 
-    // Danh sách 6 phòng chiếu mặc định kèm thông tin giới thiệu chuẩn Netflix Billboard
+    // Danh sách 6 phòng chiếu mặc định — chỉ sử dụng các phim trong Kho Phim Cloudflare R2 của bạn
     const DEFAULT_ROOMS = [
       {
         id: "room-1",
         number: "Phòng 01",
-        movieTitle: "[Review Phim] Thằn Lằn Khổng Lồ Đại Chiến - Hóa Rồng Phi Thăng",
-        genre: "Hành động • Kỳ ảo • PANDA REVIEW",
-        duration: "19:59",
-        durationSec: 1199,
+        movieTitle: "Godzilla vs. Kong (2021) - 1080p WEBRip",
+        genre: "Hành động • Quái vật • Cloudflare R2 HD",
+        duration: "113:09",
+        durationSec: 6789,
         status: "showing",
-        youtubeId: "CCyGZFUXcuI",
-        videoUrl: "",
-        previewVideoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-        poster: "https://i.ytimg.com/vi/CCyGZFUXcuI/hqdefault.jpg",
-        rankBadge: "TOP 1 THỊNH HÀNH",
+        isCustomStartZero: true,
+        youtubeId: "",
+        videoUrl: "https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Godzilla_vs_Kong/Godzilla.Vs..Kong.2021.1080p.WEBRip.x264.AAC5.1-%5BYTS.MX%5D.mp4",
+        previewVideoUrl: "https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Godzilla_vs_Kong/Godzilla.Vs..Kong.2021.1080p.WEBRip.x264.AAC5.1-%5BYTS.MX%5D.mp4",
+        poster: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=85",
+        rankBadge: "BOM TẤN R2 • TỰ ĐỘNG .SRT",
         matchScore: "99% Phù hợp",
-        ageRating: "T16+",
-        quality: "4K IMAX",
-        cast: "Panda Review, Jason Behr, Amanda Brooks, Robert Forster",
-        synopsis: "Một bệnh nhân vô tình nhìn thấy con cự mãng thời thượng cổ dài hàng nghìn mét cuộn mình trên nóc bệnh viện. Cuộc chiến truyền thuyết kéo dài 500 năm luân hồi giữa chính nghĩa chi mãng Imoogi và ác xà Buraki chính thức bùng nổ giữa lòng thành phố để đoạt Long Châu hóa thành Chân Long!"
+        ageRating: "T13+",
+        quality: "1080P IMAX",
+        cast: "Alexander Skarsgård, Millie Bobby Brown, Rebecca Hall",
+        synopsis: "Hai siêu quái vật huyền thoại Godzilla và Kong bước vào trận đại chiến chấn động thế giới, trong khi nhân loại tiến sâu vào Trái Đất Rỗng để khám phá nguồn gốc thật sự của các Titan."
       },
       {
         id: "room-2",
         number: "Phòng 02",
-        movieTitle: "Hà Anh Tuấn - Tháng Tư Là Lời Nói Dối Của Em (Official MV)",
-        genre: "Âm nhạc • Ballad • Viet Vision",
-        duration: "06:10",
-        durationSec: 370,
+        movieTitle: "Vùng Đất Quỷ Dữ 2026 (Resident Evil 2026) - Vietsub Full HD",
+        genre: "Kinh dị • Hành động • Cloudflare R2 HD",
+        duration: "Full HD",
+        durationSec: 6000,
         status: "showing",
+        isCustomStartZero: true,
         youtubeId: "",
-        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-        previewVideoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-        hasLyrics: true,
-        poster: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1e4?auto=format&fit=crop&w=1200&q=85",
-        rankBadge: "MV ĐƯỢC YÊU THÍCH NHẤT",
+        videoUrl: "https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/R2_Cloud/Xem%20V%C3%B9ng%20%C4%90%E1%BA%A5t%20Qu%E1%BB%B7%20D%E1%BB%AF%202026%20(Resident%20Evil%202026)%20Vietsub%20Full%20HD%20-%20M%E1%BB%8Dt%20chill%20-%208phimx.mp4",
+        previewVideoUrl: "https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/R2_Cloud/Xem%20V%C3%B9ng%20%C4%90%E1%BA%A5t%20Qu%E1%BB%B7%20D%E1%BB%AF%202026%20(Resident%20Evil%202026)%20Vietsub%20Full%20HD%20-%20M%E1%BB%8Dt%20chill%20-%208phimx.mp4",
+        poster: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=85",
+        rankBadge: "PHIM MỚI R2 • VIETSUB",
         matchScore: "98% Phù hợp",
-        ageRating: "Mọi lứa tuổi",
-        quality: "DOLBY ATMOS",
-        cast: "Hà Anh Tuấn, Siêu mẫu Thanh Hằng, Nhạc sĩ Phạm Toàn Thắng",
-        synopsis: "Bản ballad đầy chất thơ giữa rừng thông Đà Lạt sương mù, kể về nỗi niềm hoài niệm da diết của chàng trai khi nhớ về người con gái tháng Tư cùng những bức ảnh Polaroid lưu giữ ký ức thanh xuân không thể phai mờ."
+        ageRating: "T18+",
+        quality: "FULL HD",
+        cast: "Resident Evil 2026 • Kho Phim R2",
+        synopsis: "Cuộc sinh tồn nghẹt thở giữa thành phố bị phong tỏa bởi đại dịch sinh học nguy hiểm, nơi những bí mật đen tối của tập đoàn Umbrella dần bị phơi bày."
       },
       {
         id: "room-3",
         number: "Phòng 03",
-        movieTitle: "Tears of Steel: Chiến Binh Tương Lai (Sci-Fi 4K)",
-        genre: "Khoa học viễn tưởng • IMAX 3D",
-        duration: "12:14",
-        durationSec: 734,
+        movieTitle: "Chú Thuật Hồi Chiến: Tử Diệt Hồi Du Phần 1 - Tập 48 (Vietsub)",
+        genre: "Anime • Hành động • Ani-One Vietnam",
+        duration: "24:00",
+        durationSec: 1440,
         status: "showing",
+        isCustomStartZero: true,
         youtubeId: "",
-        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-        previewVideoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-        poster: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=85",
-        rankBadge: "TOP 3 SCI-FI",
-        matchScore: "96% Phù hợp",
-        ageRating: "T13+",
-        quality: "4K HDR",
-        cast: "Derek de Lint, Sergio Hasselbaink, Rogier Schippers",
-        synopsis: "Tại thành phố Amsterdam tương lai hậu tận thế, một nhóm chiến binh kháng chiến và các nhà khoa học nỗ lực tái hiện ký ức quan trọng nhất để cứu nhân loại khỏi sự truy quét của binh đoàn người máy."
+        videoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 48 (Vietsub)Ani-One Vietnam.mp4")}`,
+        previewVideoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 48 (Vietsub)Ani-One Vietnam.mp4")}`,
+        poster: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=85",
+        rankBadge: "JJK MÙA 3 • TẬP 48",
+        matchScore: "99% Phù hợp",
+        ageRating: "T16+",
+        quality: "1080P VIETSUB",
+        cast: "Itadori Yuji, Fushiguro Megumi, Okkotsu Yuta",
+        synopsis: "Mở màn Tử Diệt Hồi Du Phần 1: Sau biến cố Shibuya, các chú thuật sư bước vào trò chơi sinh tử khốc liệt do Kenjaku giăng ra."
       },
       {
         id: "room-4",
         number: "Phòng 04",
-        movieTitle: "Sintel: Hành Trình Đi Tìm Rồng Thiêng",
-        genre: "Hoạt hình 3D • Phiêu lưu",
-        duration: "14:48",
-        durationSec: 888,
+        movieTitle: "Chú Thuật Hồi Chiến: Tử Diệt Hồi Du Phần 1 - Tập 49 (Vietsub)",
+        genre: "Anime • Hành động • Ani-One Vietnam",
+        duration: "24:00",
+        durationSec: 1440,
         status: "showing",
+        isCustomStartZero: true,
         youtubeId: "",
-        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
-        previewVideoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+        videoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 49 (Vietsub)Ani-One Vietnam.mp4")}`,
+        previewVideoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 49 (Vietsub)Ani-One Vietnam.mp4")}`,
         poster: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=85",
-        rankBadge: "HOẠT HÌNH ĐỈNH CAO",
-        matchScore: "97% Phù hợp",
-        ageRating: "T13+",
-        quality: "FULL HD",
-        cast: "Halina Reijn, Thom Hoffman, Blender Institute",
-        synopsis: "Cô chiến binh trẻ Sintel đơn độc vượt qua những đỉnh núi tuyết giá lạnh và sa mạc bão cát để tìm lại chú rồng nhỏ Scales mà cô từng cứu chữa, trước khi đối mặt với sự thật làm tan vỡ trái tim."
+        rankBadge: "JJK MÙA 3 • TẬP 49",
+        matchScore: "98% Phù hợp",
+        ageRating: "T16+",
+        quality: "1080P VIETSUB",
+        cast: "Itadori Yuji, Fushiguro Megumi, Okkotsu Yuta",
+        synopsis: "Tiếp nối hành trình tập hợp đồng minh và chuẩn bị tiến vào kết giới Tử Diệt Hồi Du."
       },
       {
         id: "room-5",
         number: "Phòng 05",
-        movieTitle: "Big Buck Bunny: Khu Rừng Vui Nhộn",
-        genre: "Hài hước • Gia đình",
-        duration: "09:56",
-        durationSec: 596,
-        status: "upcoming",
+        movieTitle: "Chú Thuật Hồi Chiến: Tử Diệt Hồi Du Phần 1 - Tập 50 (Vietsub)",
+        genre: "Anime • Hành động • Ani-One Vietnam",
+        duration: "24:00",
+        durationSec: 1440,
+        status: "showing",
+        isCustomStartZero: true,
         youtubeId: "",
-        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-        previewVideoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-        poster: "https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1200&q=85",
-        rankBadge: "SUẤT CHIẾU GIA ĐÌNH",
-        matchScore: "94% Phù hợp",
-        ageRating: "P - Mọi lứa tuổi",
-        quality: "4K UHD",
-        cast: "Sacha Goedegebure, Jan Morgenstern",
-        synopsis: "Chú thỏ khổng lồ hiền lành yêu thiên nhiên buộc phải lập kế hoạch phản đòn cực kỳ hài hước khi bộ ba sóc bay tinh nghịch không ngừng bày trò quậy phá sự bình yên của khu rừng."
+        videoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 50 (Vietsub)Ani-One Vietnam.mp4")}`,
+        previewVideoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 50 (Vietsub)Ani-One Vietnam.mp4")}`,
+        poster: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=85",
+        rankBadge: "JJK MÙA 3 • TẬP 50",
+        matchScore: "98% Phù hợp",
+        ageRating: "T16+",
+        quality: "1080P VIETSUB",
+        cast: "Itadori Yuji, Fushiguro Megumi, Hakari Kinji",
+        synopsis: "Những trận chạm trán nảy lửa đầu tiên bên trong kết giới và cuộc đối đầu với các chú thuật sư cổ đại."
       },
       {
         id: "room-6",
         number: "Phòng 06",
-        movieTitle: "Elephants Dream: Thế Giới Cơ Khí Siêu Thực",
-        genre: "Bí ẩn • Giả tưởng",
-        duration: "10:53",
-        durationSec: 653,
-        status: "upcoming",
+        movieTitle: "Chú Thuật Hồi Chiến: Tử Diệt Hồi Du Phần 1 - Tập 51 (Vietsub)",
+        genre: "Anime • Hành động • Ani-One Vietnam",
+        duration: "24:00",
+        durationSec: 1440,
+        status: "showing",
+        isCustomStartZero: true,
         youtubeId: "",
-        videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-        previewVideoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-        poster: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=85",
-        rankBadge: "PHIM NGHỆ THUẬT",
-        matchScore: "93% Phù hợp",
-        ageRating: "T13+",
-        quality: "IMAX SOUND",
-        cast: "Tygo Gernandt, Cas Jansen, Bassam Kurdali",
-        synopsis: "Bước chân vào một cỗ máy khổng lồ kỳ dị không có điểm dừng, nơi hai nhân vật Proog và Emo nhìn thấy hai thế giới hoàn toàn trái ngược nhau giữa thực tại và ảo giác."
+        videoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 51 (Vietsub)Ani-One Vietnam.mp4")}`,
+        previewVideoUrl: `https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Ch%C3%BA%20thu%E1%BA%ADt%20h%E1%BB%93i%20chi%E1%BA%BFn/${encodeURIComponent("Chú Thuật Hồi Chiến Tử Diệt Hồi Du Phần 1   Tập 51 (Vietsub)Ani-One Vietnam.mp4")}`,
+        poster: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=85",
+        rankBadge: "JJK MÙA 3 • TẬP 51",
+        matchScore: "98% Phù hợp",
+        ageRating: "T16+",
+        quality: "1080P VIETSUB",
+        cast: "Itadori Yuji, Fushiguro Megumi, Higuruma Hiromi",
+        synopsis: "Cuộc chiến trí tuệ và lãnh địa đầy căng thẳng giữa Yuji và luật sư thiên tài Higuruma."
       }
     ];
 
@@ -2796,6 +2801,32 @@
       customSubtitlesByRoom: {},
       roomsCustom: {},
       vaultVideos: [
+        {
+          id: "r2_godzilla_vs_kong",
+          title: "Godzilla vs. Kong (2021) - 1080p WEBRip",
+          sourceType: "mp4",
+          videoUrl: "https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/Godzilla_vs_Kong/Godzilla.Vs..Kong.2021.1080p.WEBRip.x264.AAC5.1-%5BYTS.MX%5D.mp4",
+          youtubeId: "",
+          duration: "113:09",
+          durationSec: 6789,
+          sizeText: "Cloudflare R2 • 2.24 GB",
+          poster: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80",
+          hasLyrics: false,
+          createdAt: Date.now()
+        },
+        {
+          id: "r2_resident_evil_2026",
+          title: "Vùng Đất Quỷ Dữ 2026 (Resident Evil 2026) - Vietsub Full HD",
+          sourceType: "mp4",
+          videoUrl: "https://pub-c634cb0eca714151876c408aa346c6b5.r2.dev/R2_Cloud/Xem%20V%C3%B9ng%20%C4%90%E1%BA%A5t%20Qu%E1%BB%B7%20D%E1%BB%AF%202026%20(Resident%20Evil%202026)%20Vietsub%20Full%20HD%20-%20M%E1%BB%8Dt%20chill%20-%208phimx.mp4",
+          youtubeId: "",
+          duration: "Full HD",
+          durationSec: 6000,
+          sizeText: "Cloudflare R2 • Vietsub",
+          poster: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=800&q=80",
+          hasLyrics: false,
+          createdAt: Date.now() - 500
+        },
         ...[
           { ep: 48, mb: "88.8 MB" },
           { ep: 49, mb: "76.1 MB" },
@@ -2820,34 +2851,8 @@
           sizeText: `Cloudflare R2 • ${item.mb}`,
           poster: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80",
           hasLyrics: false,
-          createdAt: Date.now() - (idx * 1000)
-        })),
-        {
-          id: "preset_hat_thang4",
-          title: "Hà Anh Tuấn - Tháng Tư Là Lời Nói Dối Của Em (Official MV)",
-          sourceType: "mp4",
-          videoUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-          youtubeId: "",
-          duration: "06:10",
-          durationSec: 370,
-          sizeText: "Mẫu có sẵn",
-          poster: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1e4?auto=format&fit=crop&w=800&q=80",
-          hasLyrics: true,
-          createdAt: Date.now() - 120000
-        },
-        {
-          id: "preset_panda_dragon",
-          title: "[Review Phim] Thằn Lằn Khổng Lồ Đại Chiến - Hóa Rồng Phi Thăng",
-          sourceType: "youtube",
-          videoUrl: "",
-          youtubeId: "CCyGZFUXcuI",
-          duration: "19:59",
-          durationSec: 1199,
-          sizeText: "YouTube HD",
-          poster: "https://i.ytimg.com/vi/CCyGZFUXcuI/hqdefault.jpg",
-          hasLyrics: false,
-          createdAt: Date.now() - 90000
-        }
+          createdAt: Date.now() - ((idx + 1) * 1000)
+        }))
       ],
       seatsByRoom: {
         "room-1": {
@@ -3804,15 +3809,7 @@
       if (room.hasLyrics) {
         return HA_ANH_TUAN_LYRICS;
       }
-      // Nếu phòng đang phát phim tùy chỉnh từ Kho Video / R2 / file máy (hoặc phim đã có Vietsub gốc) -> không lấy phụ đề của phim mặc định cũ đè lên
-      const isCustomMovie = Boolean(state.roomsCustom[room.id]);
-      const hasBakedVietsub = /vietsub/i.test(room.movieTitle || "");
-      if (isCustomMovie || hasBakedVietsub) {
-        return [];
-      }
-      if (SUBTITLES_BY_ROOM[room.id]) {
-        return SUBTITLES_BY_ROOM[room.id];
-      }
+      // Không dùng phụ đề giả cho các phim R2/Kho Video (phim có Vietsub gốc tự giữ màn hình sạch, phim EN chờ file .srt)
       return [];
     }
 
@@ -4205,7 +4202,7 @@
 
         videoEl.onloadedmetadata = () => {
           document.getElementById("video-time-total").textContent = formatTime(videoEl.duration || room.durationSec || 370);
-          if (!room.isLocalBlob && videoEl.duration > 10) {
+          if (!room.isLocalBlob && !room.isCustomStartZero && videoEl.duration > 10) {
             videoEl.currentTime = Math.floor((Date.now() / 1000) % videoEl.duration);
           }
           renderSubtitleAtTime(room, videoEl.currentTime || 0);
