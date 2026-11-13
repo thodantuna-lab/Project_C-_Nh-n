@@ -6698,4 +6698,44 @@
       hostBroadcastSync,
       toggleRoomPinLock,
       toggleAmbilight,
-      to
+      toggleCinemaSFX,
+      playCinemaBellSFX,
+      openBookingModal,
+      closeBookingModal,
+      openBookingModalForHero,
+      openBookingModalFromBar,
+      quickBookFromLobbyBar,
+      onBookingRoomChange,
+      onBookingComboChange,
+      selectBookingShowtime,
+      selectBookingSeat,
+      confirmCinemaBooking,
+      openMemoryCapsuleModal,
+      closeMemoryCapsuleModal,
+      mintCurrentMomentCapsule,
+      shareCapsuleToSocial,
+      shareCapsuleToRoomChat,
+      downloadCapsuleCardPNG,
+      deleteMemoryCapsule,
+      syncFromR2Worker
+    };
+
+    // Khởi chạy ứng dụng ngay lập tức
+    updateNameUI();
+    updateMySnackStatusUI();
+    updateVaultBadgeCount();
+    loadVaultFromIndexedDB();
+    renderHeroBillboard();
+    startHeroAutoSlide();
+    startAmbilightLoop();
+    renderLobby();
+    renderJJKEpisodeLists();
+    renderMemoryCapsulesUI();
+    if (state.r2WorkerUrl) syncFromR2Worker(true);
+    initSeatingMapDelegation();
+    renderSeatingMap();
+    checkInviteUrlParams();
+    initFirebase();
+  </script>
+</body>
+</html>
