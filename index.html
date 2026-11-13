@@ -2111,6 +2111,27 @@
             </div>
           </div>
 
+          <!-- Đồng bộ tự động từ Cloudflare R2 Worker -->
+          <div class="rounded-2xl bg-gradient-to-r from-orange-950/60 via-stone-900 to-amber-950/40 border border-orange-400/35 p-3.5 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2 text-xs font-black text-orange-300">
+                <i class="fa-solid fa-cloud-arrow-down text-orange-400"></i>
+                <span>Tự Động Đồng Bộ Video Mới Từ Cloudflare R2 Bucket (Worker)</span>
+              </div>
+              <span id="r2-sync-status" class="text-[10px] font-bold text-slate-400">Chưa gắn Worker URL</span>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2">
+              <input id="r2-worker-url-input" type="url"
+                placeholder="Dán URL Cloudflare Worker (VD: https://cineverse-r2.ten-ban.workers.dev)"
+                class="flex-1 px-3 py-2 rounded-xl bg-black/70 border border-white/15 text-xs text-white focus:outline-none focus:border-orange-400" />
+              <button type="button" onclick="window.appActions.syncFromR2Worker(false)"
+                class="px-4 py-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-slate-950 font-black text-xs shadow cursor-pointer shrink-0 flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-rotate"></i>
+                <span>Lưu & Đồng Bộ R2</span>
+              </button>
+            </div>
+          </div>
+
           <!-- Lưới các thẻ Video đã tải lên Kho -->
           <div id="vault-items-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3.5"></div>
         </div>
@@ -2462,6 +2483,17 @@
         return localStorage.getItem("cineverse_username") || "";
       } catch (e) {
         return "";
+      }
+    }
+
+    // Dán URL Cloudflare Worker của bạn vào đây (nếu muốn mọi bạn bè mở link đều tự đồng bộ video mới từ R2)
+    const DEFAULT_R2_WORKER_URL = "https://cineverse-r2.thodantuna.workers.dev";
+
+    function loadSavedR2WorkerUrl() {
+      try {
+        return localStorage.getItem("cineverse_r2_worker_url") || DEFAULT_R2_WORKER_URL;
+      } catch (e) {
+        return DEFAULT_R2_WORKER_URL;
       }
     }
 
@@ -2875,6 +2907,7 @@
         comboPrice: 45000,
         comboName: "Combo Bắp Rang Bơ & Pepsi Lớn"
       },
+      r2WorkerUrl: loadSavedR2WorkerUrl(),
       memoryCapsules: []
     };
     state.memoryCapsules = loadSavedCapsules(state.userName);
@@ -6278,6 +6311,79 @@
       }
     }
 
+    async function syncFromR2Worker(silent = false) {
+      const inputEl = document.getElementById("r2-worker-url-input");
+      const statusEl = document.getElementById("r2-sync-status");
+
+      if (!silent && inputEl && inputEl.value.trim()) {
+        state.r2WorkerUrl = inputEl.value.trim().replace(/\/+$/, "");
+        try {
+          localStorage.setItem("cineverse_r2_worker_url", state.r2WorkerUrl);
+        } catch (e) {}
+      } else if (inputEl && state.r2WorkerUrl && !inputEl.value.trim()) {
+        inputEl.value = state.r2WorkerUrl;
+      }
+
+      const workerUrl = (state.r2WorkerUrl || "").trim();
+      if (!workerUrl) {
+        if (statusEl) statusEl.textContent = "Chưa gắn Worker URL";
+        if (!silent) showToast("Vui lòng dán URL Cloudflare Worker vào ô trên trước!", "error");
+        return;
+      }
+
+      if (statusEl) statusEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-orange-400 mr-1"></i>Đang quét R2...`;
+
+      try {
+        const res = await fetch(workerUrl, { cache: "no-store" });
+        const data = await res.json();
+        if (!data || !Array.isArray(data.videos)) {
+          throw new Error(data?.error || "Dữ liệu Worker không hợp lệ");
+        }
+
+        let addedCount = 0;
+        const existingUrls = new Set(state.vaultVideos.map(v => v.videoUrl));
+
+        data.videos.forEach((v, idx) => {
+          if (!v.url || existingUrls.has(v.url)) return;
+          const mb = v.size ? `${(v.size / (1024 * 1024)).toFixed(1)} MB` : "Cloudflare R2";
+          state.vaultVideos.unshift({
+            id: `r2_auto_${Date.now()}_${idx}`,
+            title: v.title || v.key || "Video Cloudflare R2",
+            sourceType: "mp4",
+            videoUrl: v.url,
+            youtubeId: "",
+            duration: "HD Live",
+            durationSec: 1440,
+            sizeText: `Cloudflare R2 • ${mb}`,
+            poster: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80",
+            hasLyrics: false,
+            createdAt: v.uploaded ? new Date(v.uploaded).getTime() : Date.now()
+          });
+          existingUrls.add(v.url);
+          addedCount++;
+        });
+
+        updateVaultBadgeCount();
+        renderVideoVaultGrid();
+        renderJJKEpisodeLists();
+
+        if (statusEl) {
+          statusEl.innerHTML = `<span class="text-emerald-400">✅ Đã đồng bộ ${data.videos.length} video từ R2 (+${addedCount} mới)</span>`;
+        }
+        if (!silent) {
+          showToast(
+            addedCount > 0
+              ? `☁️ Đã tự động cập nhật thêm ${addedCount} video mới từ Cloudflare R2!`
+              : `☁️ Kho đã đồng bộ đủ ${data.videos.length} video trên Cloudflare R2!`,
+            "success"
+          );
+        }
+      } catch (err) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">❌ Lỗi kết nối Worker</span>`;
+        if (!silent) showToast(`Không kết nối được Cloudflare Worker: ${err.message}`, "error");
+      }
+    }
+
     // Tự động đóng menu thả xuống khi click ra ngoài
     document.addEventListener("click", (e) => {
       if (!e.target.closest("[data-dropdown-root]")) {
@@ -6410,7 +6516,8 @@
       shareCapsuleToSocial,
       shareCapsuleToRoomChat,
       downloadCapsuleCardPNG,
-      deleteMemoryCapsule
+      deleteMemoryCapsule,
+      syncFromR2Worker
     };
 
     // Khởi chạy ứng dụng ngay lập tức
@@ -6424,6 +6531,7 @@
     renderLobby();
     renderJJKEpisodeLists();
     renderMemoryCapsulesUI();
+    if (state.r2WorkerUrl) syncFromR2Worker(true);
     initSeatingMapDelegation();
     renderSeatingMap();
     checkInviteUrlParams();
