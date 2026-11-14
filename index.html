@@ -1955,10 +1955,16 @@
                     <span class="text-[10px] uppercase font-black text-emerald-400 block">Đố Vui Điện Ảnh Tại Ghế</span>
                     <strong class="text-white text-xs">Điểm của bạn: <span id="trivia-my-score" class="text-amber-400">0</span> pts</strong>
                   </div>
-                  <button type="button" onclick="window.appActions.nextTriviaQuestion()"
-                    class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] cursor-pointer">
-                    Câu hỏi mới <i class="fa-solid fa-forward ml-1"></i>
-                  </button>
+                  <div class="flex items-center gap-1.5">
+                    <button type="button" id="btn-ai-trivia-gen" onclick="window.appActions.refreshAITriviaNow()"
+                      class="px-2 py-1.5 rounded-lg bg-sky-600/25 hover:bg-sky-600/45 border border-sky-400/40 text-sky-200 font-black text-[11px] cursor-pointer" title="Dùng Gemini AI tạo bộ câu hỏi mới theo phim đang xem">
+                      <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>AI Tạo Mới
+                    </button>
+                    <button type="button" onclick="window.appActions.nextTriviaQuestion()"
+                      class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] cursor-pointer">
+                      Câu hỏi mới <i class="fa-solid fa-forward ml-1"></i>
+                    </button>
+                  </div>
                 </div>
 
                 <div class="bg-stone-950 border border-white/10 rounded-2xl p-3.5 space-y-2.5">
@@ -5477,6 +5483,68 @@
       return suggestions;
     }
 
+    const aiPlaylistFetching = {};
+
+    async function callWorkerAI(payload) {
+      try {
+        const base = (typeof getR2WorkerUrl === "function" ? getR2WorkerUrl() : DEFAULT_R2_WORKER_URL).replace(/\/+$/, "");
+        const res = await fetch(`${base}/ai`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        return (data && data.ok) ? data : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function fetchAIPlaylistForRoom(roomId, room, curKey) {
+      if (aiPlaylistFetching[curKey]) return;
+      aiPlaylistFetching[curKey] = true;
+      try {
+        const allItems = [
+          ...state.vaultVideos.map(v => ({ title: v.title, url: v.url })),
+          ...DEFAULT_ROOMS.map(r => ({
+            title: r.movieTitle,
+            url: r.youtubeId ? `https://www.youtube.com/watch?v=${r.youtubeId}` : r.videoUrl
+          }))
+        ];
+        const aiRes = await callWorkerAI({
+          mode: "recommend",
+          movieTitle: room.movieTitle,
+          genre: room.genre,
+          availableTitles: allItems.map(x => x.title)
+        });
+        if (!aiRes || !Array.isArray(aiRes.items) || !aiRes.items.length) return;
+        const matched = [];
+        for (const rec of aiRes.items) {
+          const found = allItems.find(x => x.title.toLowerCase() === String(rec.title || "").toLowerCase())
+            || allItems.find(x => x.title.toLowerCase().includes(String(rec.title || "").toLowerCase().slice(0, 18)));
+          if (found && !matched.some(m => m.url === found.url)) {
+            matched.push({
+              id: "pl_gem_" + Math.random().toString(36).slice(2, 7),
+              title: `✨ ${found.title}`,
+              url: found.url,
+              votes: Math.max(1, 5 - matched.length),
+              votedByMe: false,
+              isAISuggestion: true
+            });
+          }
+        }
+        if (matched.length) {
+          const customItems = (state.playlistByRoom[roomId] || []).filter(x => !x.isAISuggestion);
+          state.playlistByRoom[roomId] = [...customItems, ...matched];
+          if (state.currentRoomId === roomId && state.sidebarTab === "playlist") {
+            renderPlaylistQueue();
+          }
+        }
+      } finally {
+        delete aiPlaylistFetching[curKey];
+      }
+    }
+
     function getRoomPlaylist(roomId) {
       const room = getEffectiveRoom(roomId);
       const curKey = `${room.movieTitle}|${room.videoUrl || room.youtubeId || ""}`;
@@ -5488,6 +5556,7 @@
         ];
         if (!state.playlistSourceKey) state.playlistSourceKey = {};
         state.playlistSourceKey[roomId] = curKey;
+        fetchAIPlaylistForRoom(roomId, room, curKey);
       }
       return state.playlistByRoom[roomId];
     }
@@ -5579,8 +5648,63 @@
     }
 
     // --- TAB 3: MINI-GAME ĐỐ VUI TRIVIA (AI TẠO THEO PHIM ĐANG XEM) ---
+    const aiTriviaCache = {};
+    const aiTriviaFetching = {};
+
+    async function fetchAITriviaForRoom(room, forceRefresh = false) {
+      const key = (room?.movieTitle || "default").trim();
+      if (!forceRefresh && aiTriviaCache[key]) return aiTriviaCache[key];
+      if (aiTriviaFetching[key]) return null;
+      aiTriviaFetching[key] = true;
+      const btn = document.getElementById("btn-ai-trivia-gen");
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i>Đang tạo...`;
+      }
+      try {
+        const aiRes = await callWorkerAI({
+          mode: "trivia",
+          movieTitle: room.movieTitle,
+          genre: room.genre,
+          cast: room.cast || "",
+          synopsis: room.synopsis || ""
+        });
+        if (aiRes && Array.isArray(aiRes.items) && aiRes.items.length) {
+          const valid = aiRes.items.filter(it => it && it.q && Array.isArray(it.options) && it.options.length >= 2 && typeof it.answer === "number");
+          if (valid.length) {
+            aiTriviaCache[key] = valid;
+            state.triviaIndex = 0;
+            state.triviaAnsweredCurrent = false;
+            if (state.sidebarTab === "trivia") renderTriviaPanel();
+            if (forceRefresh) showToast(`✨ Gemini AI vừa tạo ${valid.length} câu đố mới cho "${room.movieTitle}"!`, "success");
+            return valid;
+          }
+        }
+        if (forceRefresh) {
+          showToast("Chưa gắn GEMINI_API_KEY trong Cloudflare Worker — đang dùng bộ câu hỏi theo phim.", "info");
+        }
+        return null;
+      } finally {
+        delete aiTriviaFetching[key];
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles mr-1"></i>AI Tạo Mới`;
+        }
+      }
+    }
+
+    function refreshAITriviaNow() {
+      const room = state.currentRoomId ? getEffectiveRoom(state.currentRoomId) : DEFAULT_ROOMS[0];
+      fetchAITriviaForRoom(room, true);
+    }
+
     function getTriviaQuestionsForRoom(room) {
-      const title = (room?.movieTitle || "").toLowerCase();
+      const key = (room?.movieTitle || "default").trim();
+      if (aiTriviaCache[key] && aiTriviaCache[key].length) {
+        return aiTriviaCache[key];
+      }
+      fetchAITriviaForRoom(room, false);
+      const title = key.toLowerCase();
       if (/godzilla|kong/i.test(title)) {
         return [
           {
@@ -5797,10 +5921,22 @@
     }
 
     async function generateSmartMovieAIReply(q, room) {
+      const workerRes = await callWorkerAI({
+        mode: "chat",
+        movieTitle: room.movieTitle,
+        genre: room.genre,
+        cast: room.cast || "",
+        synopsis: room.synopsis || "",
+        question: q
+      });
+      if (workerRes && workerRes.reply) {
+        return workerRes.reply;
+      }
+
       const apiKey = (localStorage.getItem("cineverse_gemini_key") || "").trim();
       if (apiKey) {
         try {
-          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${encodeURIComponent(apiKey)}`;
           const res = await fetch(apiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -7885,6 +8021,7 @@
       playTopVotedMovieNow,
       answerTrivia,
       nextTriviaQuestion,
+      refreshAITriviaNow,
       submitAIMovieQuestion,
       askQuickAIMovie,
       hostBroadcastSync,
