@@ -7714,23 +7714,35 @@
     let myVoiceDisconnect = null;
 
     function updateVoiceMicButtonUI() {
-      const btnTop = document.getElementById("btn-room-mic");
       const btnPlayer = document.getElementById("btn-player-mic");
       const btnCouple = document.getElementById("btn-couple-mic");
-      [btnTop, btnPlayer].forEach(btn => {
-        if (!btn) return;
+      if (btnPlayer) {
         if (voiceMicActive) {
-          btn.innerHTML = `<i class="fa-solid fa-microphone mr-1 animate-pulse"></i>Mic Đang Bật`;
-          btn.className = "px-2.5 py-1 rounded-lg bg-emerald-500 text-slate-950 font-black text-[11px] shadow cursor-pointer";
+          btnPlayer.innerHTML = `<i class="fa-solid fa-microphone mr-1 animate-pulse"></i>Mic Đang Bật`;
+          btnPlayer.className = "px-2.5 py-1.5 rounded-xl bg-emerald-500 text-slate-950 font-black transition cursor-pointer shadow";
         } else {
-          btn.innerHTML = `<i class="fa-solid fa-microphone-slash mr-1"></i>Bật Mic`;
-          btn.className = "px-2.5 py-1 rounded-lg bg-emerald-600/25 hover:bg-emerald-500/40 text-emerald-300 border border-emerald-400/50 font-extrabold text-[11px] transition cursor-pointer";
+          btnPlayer.innerHTML = `<i class="fa-solid fa-microphone-slash mr-1"></i>Bật Mic`;
+          btnPlayer.className = "px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-500/35 border border-emerald-400/40 text-emerald-300 font-extrabold transition cursor-pointer";
         }
-      });
+      }
       if (btnCouple) {
         btnCouple.innerHTML = `<i class="fa-solid ${voiceMicActive ? 'fa-microphone animate-pulse' : 'fa-microphone-slash'} mr-1"></i>${voiceMicActive ? 'Mic Đang Bật (Bấm để tắt)' : 'Bấm Bật Mic Nói Chuyện'}`;
         btnCouple.className = `px-2.5 py-1 rounded-xl ${voiceMicActive ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-emerald-600/30 hover:bg-emerald-500/45 text-emerald-200 border border-emerald-400/50'} font-extrabold transition cursor-pointer`;
       }
+    }
+
+    function resumePendingVoiceAudio() {
+      const container = document.getElementById("voice-audio-container");
+      if (!container) return;
+      container.querySelectorAll("audio").forEach(a => {
+        if (a.srcObject && a.paused) {
+          a.play().catch(() => {});
+        }
+      });
+    }
+    if (!window.__voiceAutoplayUnlockBound) {
+      window.__voiceAutoplayUnlockBound = true;
+      document.addEventListener("pointerdown", resumePendingVoiceAudio, { passive: true });
     }
 
     function closeVoicePeer(remoteUid) {
@@ -7753,22 +7765,21 @@
       audioEl.playsInline = true;
       if (container) container.appendChild(audioEl);
 
-      const entry = { pc, audioEl, pendingIce: [], makingOffer: false };
+      const entry = { pc, audioEl, pendingIce: [], makingOffer: false, audioSender: null };
       voicePeers[remoteUid] = entry;
 
-      if (localVoiceStream) {
-        localVoiceStream.getAudioTracks().forEach(track => {
-          pc.addTrack(track, localVoiceStream);
-        });
+      if (localVoiceStream && localVoiceStream.getAudioTracks().length > 0) {
+        const track = localVoiceStream.getAudioTracks()[0];
+        entry.audioSender = pc.addTrack(track, localVoiceStream);
       } else {
-        pc.addTransceiver("audio", { direction: "recvonly" });
+        const transceiver = pc.addTransceiver("audio", { direction: "sendrecv" });
+        entry.audioSender = transceiver.sender;
       }
 
       pc.ontrack = (event) => {
-        if (event.streams && event.streams[0]) {
-          audioEl.srcObject = event.streams[0];
-          audioEl.play().catch(() => {});
-        }
+        const stream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
+        audioEl.srcObject = stream;
+        audioEl.play().catch(() => {});
       };
 
       pc.onicecandidate = (event) => {
@@ -7928,8 +7939,10 @@
     async function toggleVoiceMic() {
       if (!state.currentRoomId) return;
       const roomId = state.currentRoomId;
+      resumePendingVoiceAudio();
+
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showToast("Trình duyệt này không hỗ trợ micro trực tuyến (cần HTTPS).", "error");
+        showToast("Trình duyệt này không hỗ trợ micro trực tuyến (cần HTTPS hoặc localhost).", "error");
         return;
       }
       if (voiceMicActive) {
@@ -7946,47 +7959,58 @@
       }
 
       try {
-        const hadStreamBefore = Boolean(localVoiceStream);
         if (!localVoiceStream) {
-          localVoiceStream = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-          });
-        }
-        localVoiceStream.getAudioTracks().forEach(t => { t.enabled = true; });
-        voiceMicActive = true;
-        updateVoiceMicButtonUI();
-
-        if (!hadStreamBefore && rtdb && rtdbMod) {
-          Object.keys(voicePeers).forEach(closeVoicePeer);
-          const snap = await rtdbMod.get(rtdbMod.ref(rtdb, `voice/${roomId}/peers`));
-          const peersMap = snap.val() || {};
-          for (const rUid of Object.keys(peersMap)) {
-            if (rUid !== state.uid) {
-              const entry = getOrCreateVoicePeer(roomId, rUid);
-              const offer = await entry.pc.createOffer();
-              await entry.pc.setLocalDescription(offer);
-              await rtdbMod.set(rtdbMod.ref(rtdb, `voice/${roomId}/signals/${rUid}/${state.uid}`), {
-                type: "offer",
-                sdp: offer.sdp,
-                from: state.uid,
-                ts: Date.now()
-              });
+          try {
+            localVoiceStream = await navigator.mediaDevices.getUserMedia({
+              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+            });
+          } catch (constraintErr) {
+            if (constraintErr && (constraintErr.name === "OverconstrainedError" || constraintErr.name === "ConstraintNotSatisfiedError")) {
+              localVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            } else {
+              throw constraintErr;
             }
           }
         }
-
-        if (rtdb && rtdbMod) {
-          rtdbMod.set(rtdbMod.ref(rtdb, `voice/${roomId}/peers/${state.uid}`), {
-            uid: state.uid,
-            userName: state.userName,
-            micOn: true,
-            updatedAt: Date.now()
-          }).catch(() => {});
+      } catch (micErr) {
+        const errName = micErr && micErr.name ? micErr.name : "";
+        if (errName === "NotFoundError" || errName === "DevicesNotFoundError") {
+          showToast("Không tìm thấy thiết bị Micro nào trên máy bạn!", "error");
+        } else if (errName === "NotReadableError" || errName === "TrackStartError") {
+          showToast("Micro đang bị ứng dụng khác sử dụng!", "error");
+        } else {
+          showToast("Bạn chưa cấp quyền sử dụng Micro cho trình duyệt!", "error");
         }
-        showToast("🎙️ Micro đã bật! Người cùng phòng có thể nghe thấy bạn nói.", "success");
-      } catch (e) {
-        showToast("Bạn chưa cấp quyền sử dụng Micro cho trình duyệt!", "error");
+        return;
       }
+
+      const track = localVoiceStream.getAudioTracks()[0];
+      if (!track) {
+        showToast("Không nhận được tín hiệu âm thanh từ Micro!", "error");
+        return;
+      }
+      track.enabled = true;
+      voiceMicActive = true;
+      updateVoiceMicButtonUI();
+
+      // Gắn track trực tiếp vào các kết nối WebRTC hiện có (không đóng/tạo lại gây rớt kết nối)
+      for (const [rUid, entry] of Object.entries(voicePeers)) {
+        try {
+          if (entry && entry.audioSender && entry.pc && entry.pc.connectionState !== "closed") {
+            await entry.audioSender.replaceTrack(track);
+          }
+        } catch (e) {}
+      }
+
+      if (rtdb && rtdbMod) {
+        rtdbMod.set(rtdbMod.ref(rtdb, `voice/${roomId}/peers/${state.uid}`), {
+          uid: state.uid,
+          userName: state.userName,
+          micOn: true,
+          updatedAt: Date.now()
+        }).catch(() => {});
+      }
+      showToast("🎙️ Micro đã bật! Người cùng phòng có thể nghe thấy bạn nói.", "success");
     }
 
     async function initFirebase() {
