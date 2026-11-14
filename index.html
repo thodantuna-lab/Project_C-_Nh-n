@@ -7607,6 +7607,9 @@
         startHostHeartbeat();
         broadcastRoomVideoSync("host");
         broadcastRoomEffectsSync();
+        if (state.customSubtitlesByRoom[roomId]?.length) {
+          syncRoomSubtitlesToRTDB(roomId, state.customSubtitlesByRoom[roomId], "Host .SRT");
+        }
         showToast("👑 Bạn đã làm Chủ Trì! Mọi người trong phòng sẽ tự động chạy theo thời gian của bạn.", "success");
       } catch (e) {
         showToast("Không thể nhận quyền Chủ Trì lúc này, vui lòng thử lại.", "error");
@@ -7817,23 +7820,14 @@
         roomSyncUnsub = null;
       }
       latestRoomSyncState = null;
+      let latestRoomEffectsState = null;
+      let latestRoomSubtitlesState = null;
       if (!rtdb || !rtdbMod || !roomId) return;
-      const unsubVideo = rtdbMod.onValue(rtdbMod.ref(rtdb, `sync/${roomId}`), (snap) => {
-        const data = snap.val();
-        if (!data) return;
-        latestRoomSyncState = data;
-        applyRemoteVideoSync(roomId, data, false);
-      }, () => {});
-      const unsubEffects = rtdbMod.onValue(rtdbMod.ref(rtdb, `effects/${roomId}`), (snap) => {
-        const data = snap.val();
-        if (!data) return;
-        applyRemoteRoomEffects(data, roomId, true);
-      }, () => {});
-      const unsubSubtitles = rtdbMod.onValue(rtdbMod.ref(rtdb, `room_subtitles/${roomId}`), (snap) => {
-        const data = snap.val();
+
+      const applyRemoteRoomSubtitles = (data) => {
         if (!data || !Array.isArray(data.cues) || !data.cues.length) return;
         if (data.uid === state.uid) return;
-        if (currentRoomHost && currentRoomHost.uid && data.uid !== currentRoomHost.uid) return;
+        if (!currentRoomHost || !currentRoomHost.uid || data.uid !== currentRoomHost.uid) return;
         const roomObj = getEffectiveRoom(roomId);
         const currentKey = getSubtitleSyncKey(roomObj);
         if (data.sourceKey && currentKey && data.sourceKey !== currentKey) return;
@@ -7847,6 +7841,38 @@
         if (state.currentRoomId === roomId && vEl && !vEl.classList.contains("hidden")) {
           renderSubtitleAtTime(roomObj, vEl.currentTime || 0);
         }
+      };
+
+      const unsubHost = rtdbMod.onValue(rtdbMod.ref(rtdb, `host/${roomId}`), (snap) => {
+        const hostVal = snap.val();
+        currentRoomHost = (hostVal && hostVal.uid) ? hostVal : null;
+        if (!isIAmHost()) {
+          stopHostHeartbeat();
+        }
+        renderRoomHostBadge();
+        if (currentRoomHost && currentRoomHost.uid && currentRoomHost.uid !== state.uid) {
+          if (latestRoomEffectsState) applyRemoteRoomEffects(latestRoomEffectsState, roomId, false);
+          if (latestRoomSubtitlesState) applyRemoteRoomSubtitles(latestRoomSubtitlesState);
+          if (latestRoomSyncState) applyRemoteVideoSync(roomId, latestRoomSyncState, false);
+        }
+      }, () => {});
+      const unsubVideo = rtdbMod.onValue(rtdbMod.ref(rtdb, `sync/${roomId}`), (snap) => {
+        const data = snap.val();
+        if (!data) return;
+        latestRoomSyncState = data;
+        applyRemoteVideoSync(roomId, data, false);
+      }, () => {});
+      const unsubEffects = rtdbMod.onValue(rtdbMod.ref(rtdb, `effects/${roomId}`), (snap) => {
+        const data = snap.val();
+        if (!data) return;
+        latestRoomEffectsState = data;
+        applyRemoteRoomEffects(data, roomId, true);
+      }, () => {});
+      const unsubSubtitles = rtdbMod.onValue(rtdbMod.ref(rtdb, `room_subtitles/${roomId}`), (snap) => {
+        const data = snap.val();
+        if (!data) return;
+        latestRoomSubtitlesState = data;
+        applyRemoteRoomSubtitles(data);
       }, () => {});
       let lastReactionId = "";
       const unsubReact = rtdbMod.onValue(rtdbMod.ref(rtdb, `reactions/${roomId}`), (snap) => {
@@ -7857,20 +7883,12 @@
         spawnFloatingEmojis(data.emoji);
         triggerSeatBubble(roomId, data.seatId || "F4", data.userName, `${data.emoji} ${data.emoji} ${data.emoji}`, false);
       }, () => {});
-      const unsubHost = rtdbMod.onValue(rtdbMod.ref(rtdb, `host/${roomId}`), (snap) => {
-        const hostVal = snap.val();
-        currentRoomHost = (hostVal && hostVal.uid) ? hostVal : null;
-        if (!isIAmHost()) {
-          stopHostHeartbeat();
-        }
-        renderRoomHostBadge();
-      }, () => {});
       roomSyncUnsub = () => {
+        unsubHost();
         unsubVideo();
         unsubEffects();
         unsubSubtitles();
         unsubReact();
-        unsubHost();
       };
     }
 
