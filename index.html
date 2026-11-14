@@ -3468,12 +3468,18 @@
       }
 
       const room = getEffectiveRoom(roomId);
-      if (room.isCoupleRoom) {
-        const currentSeats = state.seatsByRoom[roomId] || {};
-        const otherRealCount = Object.values(currentSeats).filter(s => s && s.isReal && s.uid !== state.uid).length;
-        if (otherRealCount >= 2) {
-          showToast("💕 Phòng Đôi VIP đã đủ 2 người rồi! Vui lòng chọn phòng khác.", "error");
-          return;
+      const currentSeats = state.seatsByRoom[roomId] || {};
+      const otherRealCount = Object.values(currentSeats).filter(s => s && s.isReal && s.uid !== state.uid).length;
+      if (room.isCoupleRoom && otherRealCount >= 2) {
+        showToast("💕 Phòng Đôi VIP đã đủ 2 người rồi! Vui lòng chọn phòng khác.", "error");
+        return;
+      }
+
+      // Nếu không có ai đang xem trong phòng -> làm mới khung chat
+      if (otherRealCount === 0) {
+        state.chatByRoom[roomId] = [];
+        if (rtdb && rtdbMod) {
+          rtdbMod.remove(rtdbMod.ref(rtdb, `chat/${roomId}`)).catch(() => {});
         }
       }
 
@@ -3516,6 +3522,13 @@
         const mySeat = getMySeatInRoom(oldRoomId);
         if (mySeat && state.seatsByRoom[oldRoomId]) {
           delete state.seatsByRoom[oldRoomId][mySeat];
+        }
+        const remainingReal = Object.values(state.seatsByRoom[oldRoomId] || {}).some(s => s && s.isReal);
+        if (!remainingReal) {
+          state.chatByRoom[oldRoomId] = [];
+          if (rtdb && rtdbMod) {
+            rtdbMod.remove(rtdbMod.ref(rtdb, `chat/${oldRoomId}`)).catch(() => {});
+          }
         }
         clearMySeatFromRTDB();
         releaseMyHostStatus();
@@ -5414,13 +5427,67 @@
       if (tab === "ai") renderAICompanionMessages();
     }
 
-    // --- TAB 2: PLAYLIST VOTE ---
+    // --- TAB 2: PLAYLIST VOTE (AI TỰ ĐỘNG ĐỀ XUẤT THEO PHIM ĐANG XEM) ---
+    function buildAIPlaylistSuggestionsForRoom(room) {
+      const title = (room?.movieTitle || "").toLowerCase();
+      const curUrl = room?.videoUrl || (room?.youtubeId ? `https://www.youtube.com/watch?v=${room.youtubeId}` : "");
+      const suggestions = [];
+
+      // Nếu đang xem Chú Thuật Hồi Chiến -> AI tự động đề xuất các tập tiếp theo trong Kho R2
+      const epMatch = title.match(/tập\s*(\d+)/i);
+      if (title.includes("chú thuật") || title.includes("jujutsu")) {
+        const curEp = epMatch ? parseInt(epMatch[1], 10) : 48;
+        for (let ep = curEp + 1; ep <= Math.min(59, curEp + 3); ep++) {
+          const found = state.vaultVideos.find(v => /chú thuật/i.test(v.title) && new RegExp(`tập\\s*${ep}\\b`, "i").test(v.title));
+          if (found) {
+            suggestions.push({
+              id: `pl_ai_jjk_${ep}`,
+              title: `🤖 AI Đề xuất: ${found.title}`,
+              url: found.url,
+              votes: Math.max(1, 6 - (ep - curEp)),
+              votedByMe: false,
+              isAISuggestion: true
+            });
+          }
+        }
+      }
+
+      // Bổ sung các phim cùng gu / nổi bật khác từ Kho Video & các phòng
+      const pool = [
+        ...state.vaultVideos.filter(v => !/tập\s*\d+/i.test(v.title)),
+        ...DEFAULT_ROOMS.map(r => ({
+          title: r.movieTitle,
+          url: r.youtubeId ? `https://www.youtube.com/watch?v=${r.youtubeId}` : r.videoUrl
+        }))
+      ];
+      for (const item of pool) {
+        if (!item.url || item.url === curUrl) continue;
+        if (suggestions.some(s => s.url === item.url)) continue;
+        suggestions.push({
+          id: "pl_ai_" + Math.random().toString(36).slice(2, 7),
+          title: `🤖 AI Gợi ý: ${item.title}`,
+          url: item.url,
+          votes: Math.max(1, 4 - suggestions.length),
+          votedByMe: false,
+          isAISuggestion: true
+        });
+        if (suggestions.length >= 4) break;
+      }
+
+      return suggestions;
+    }
+
     function getRoomPlaylist(roomId) {
-      if (!state.playlistByRoom[roomId]) {
+      const room = getEffectiveRoom(roomId);
+      const curKey = `${room.movieTitle}|${room.videoUrl || room.youtubeId || ""}`;
+      if (!state.playlistByRoom[roomId] || state.playlistSourceKey?.[roomId] !== curKey) {
+        const customItems = (state.playlistByRoom[roomId] || []).filter(x => !x.isAISuggestion);
         state.playlistByRoom[roomId] = [
-          { id: "pl_def_1", title: "[Review Phim] Thằn Lằn Khổng Lồ Đại Chiến", url: "https://www.youtube.com/watch?v=CCyGZFUXcuI", votes: 5, votedByMe: false },
-          { id: "pl_def_2", title: "Hà Anh Tuấn - Tháng Tư Là Lời Nói Dối Của Em", url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4", votes: 4, votedByMe: false }
+          ...customItems,
+          ...buildAIPlaylistSuggestionsForRoom(room)
         ];
+        if (!state.playlistSourceKey) state.playlistSourceKey = {};
+        state.playlistSourceKey[roomId] = curKey;
       }
       return state.playlistByRoom[roomId];
     }
@@ -5511,11 +5578,111 @@
       pushMessageToRoom(`🎬 Đang chuyển sang phát bộ phim đứng Top 1 bình chọn: "${top.title}"!`);
     }
 
-    // --- TAB 3: MINI-GAME ĐỐ VUI TRIVIA ---
+    // --- TAB 3: MINI-GAME ĐỐ VUI TRIVIA (AI TẠO THEO PHIM ĐANG XEM) ---
+    function getTriviaQuestionsForRoom(room) {
+      const title = (room?.movieTitle || "").toLowerCase();
+      if (/godzilla|kong/i.test(title)) {
+        return [
+          {
+            q: "Trong Godzilla vs. Kong (2021), tập đoàn Apex đã dùng hộp sọ của quái vật nào để chế tạo Mechagodzilla?",
+            options: ["King Ghidorah", "Mothra", "Rodan", "Destoroyah"],
+            answer: 0
+          },
+          {
+            q: "Nguồn năng lượng cổ đại giúp Kong nạp sức mạnh cho chiếc rìu chiến nằm ở đâu?",
+            options: ["Đảo Đầu Lâu", "Trái Đất Rỗng (Hollow Earth)", "Đáy Thái Bình Dương", "Núi Phú Sĩ"],
+            answer: 1
+          },
+          {
+            q: "Trận đại chiến quyết định giữa Godzilla, Kong và Mechagodzilla diễn ra tại thành phố nào?",
+            options: ["Tokyo", "New York", "Hong Kong", "Singapore"],
+            answer: 2
+          },
+          {
+            q: `Ai là đạo diễn của bom tấn "${room.movieTitle}"?`,
+            options: ["Adam Wingard", "Christopher Nolan", "James Cameron", "Zack Snyder"],
+            answer: 0
+          }
+        ];
+      }
+      if (/chú thuật|jujutsu|tử diệt/i.test(title)) {
+        return [
+          {
+            q: "Trong Chú Thuật Hồi Chiến Mùa 3 (Tử Diệt Hồi Du), mục tiêu chính của nhóm Yuji là thu thập điểm để giải phong ấn cho ai?",
+            options: ["Nanami Kento", "Gojo Satoru", "Geto Suguru", "Toji Fushiguro"],
+            answer: 1
+          },
+          {
+            q: "Luật sư thiên tài Hiromi Higuruma sở hữu Lãnh Địa Triển Khai mang tên gì?",
+            options: ["Phục Ma Ngự Trù Tử", "Vô Lượng Không Xứ", "Tru Tử Phục Tội", "Khảm Hợp Ám Ế Đình"],
+            answer: 2
+          },
+          {
+            q: "Studio hoạt hình danh tiếng nào đứng sau toàn bộ loạt phim Chú Thuật Hồi Chiến?",
+            options: ["Ufotable", "MAPPA", "Wit Studio", "Madhouse"],
+            answer: 1
+          },
+          {
+            q: "Chú thuật sư Đặc cấp nào đã càn quét kết giới Sendai trong Tử Diệt Hồi Du?",
+            options: ["Okkotsu Yuta", "Todo Aoi", "Inumaki Toge", "Kugisaki Nobara"],
+            answer: 0
+          }
+        ];
+      }
+      if (/quỷ dữ|resident evil/i.test(title)) {
+        return [
+          {
+            q: "Tập đoàn nào đứng sau thảm họa sinh học T-Virus trong vũ trụ Vùng Đất Quỷ Dữ (Resident Evil)?",
+            options: ["Apex Cybernetics", "Umbrella Corporation", "Weyland-Yutani", "Oscorp"],
+            answer: 1
+          },
+          {
+            q: "Thành phố đầu tiên bị bùng phát đại dịch xác sống trong Resident Evil là gì?",
+            options: ["Raccoon City", "Gotham City", "Silent Hill", "Metropolis"],
+            answer: 0
+          },
+          {
+            q: "Loạt phim Vùng Đất Quỷ Dữ được chuyển thể từ thương hiệu game sinh tồn của hãng nào?",
+            options: ["Konami", "Square Enix", "Capcom", "Bandai Namco"],
+            answer: 2
+          }
+        ];
+      }
+      if (/tháng tư|hà anh tuấn/i.test(title)) {
+        return [
+          {
+            q: "Ai là nhạc sĩ sáng tác ca khúc 'Tháng Tư Là Lời Nói Dối Của Em'?",
+            options: ["Phạm Toàn Thắng", "Phan Mạnh Quỳnh", "Vũ Cát Tường", "Khắc Hưng"],
+            answer: 0
+          },
+          {
+            q: "Nữ siêu mẫu nào đóng vai chính cùng Hà Anh Tuấn trong MV này?",
+            options: ["Hồ Ngọc Hà", "Thanh Hằng", "Minh Tú", "Lan Khuê"],
+            answer: 1
+          }
+        ];
+      }
+      return [
+        {
+          q: `Bộ phim "${room.movieTitle}" đang chiếu thuộc thể loại chính nào?`,
+          options: [room.genre || "Điện ảnh", "Tài liệu lịch sử", "Hoạt hình thiếu nhi", "Cải lương"],
+          answer: 0
+        },
+        {
+          q: `Thời lượng hiển thị của "${room.movieTitle}" tại rạp CineVerse là bao lâu?`,
+          options: ["15 phút", room.duration || "24:00", "5 tiếng", "3 phút"],
+          answer: 1
+        },
+        ...TRIVIA_QUESTIONS
+      ];
+    }
+
     function renderTriviaPanel() {
-      const qObj = TRIVIA_QUESTIONS[state.triviaIndex % TRIVIA_QUESTIONS.length];
+      const room = state.currentRoomId ? getEffectiveRoom(state.currentRoomId) : DEFAULT_ROOMS[0];
+      const activeList = getTriviaQuestionsForRoom(room);
+      const qObj = activeList[state.triviaIndex % activeList.length];
       document.getElementById("trivia-my-score").textContent = state.triviaMyScore;
-      document.getElementById("trivia-q-Number").textContent = `CÂU HỎI #${(state.triviaIndex % TRIVIA_QUESTIONS.length) + 1}`;
+      document.getElementById("trivia-q-Number").textContent = `AI ĐỐ VUI • CÂU #${(state.triviaIndex % activeList.length) + 1}`;
       document.getElementById("trivia-q-text").textContent = qObj.q;
 
       const optBox = document.getElementById("trivia-options-box");
@@ -5547,13 +5714,15 @@
         showToast("Bạn đã trả lời câu này rồi! Bấm 'Câu hỏi mới' nhé.", "info");
         return;
       }
-      const qObj = TRIVIA_QUESTIONS[state.triviaIndex % TRIVIA_QUESTIONS.length];
+      const room = state.currentRoomId ? getEffectiveRoom(state.currentRoomId) : DEFAULT_ROOMS[0];
+      const activeList = getTriviaQuestionsForRoom(room);
+      const qObj = activeList[state.triviaIndex % activeList.length];
       state.triviaAnsweredCurrent = true;
       if (choiceIdx === qObj.answer) {
         state.triviaMyScore += 10;
         playReactionSFX("👏");
         showToast("🎉 Chính xác! Bạn nhận được +10 điểm Đố Vui Điện Ảnh!", "success");
-        pushMessageToRoom(`🏆 Vừa trả lời đúng câu đố điện ảnh và đạt ${state.triviaMyScore} điểm!`);
+        pushMessageToRoom(`🏆 Vừa trả lời đúng câu đố "${room.movieTitle}" và đạt ${state.triviaMyScore} điểm!`);
       } else {
         showToast(`Tiếc quá! Đáp án đúng là: ${qObj.options[qObj.answer]}`, "error");
       }
@@ -5561,7 +5730,9 @@
     }
 
     function nextTriviaQuestion() {
-      state.triviaIndex = (state.triviaIndex + 1) % TRIVIA_QUESTIONS.length;
+      const room = state.currentRoomId ? getEffectiveRoom(state.currentRoomId) : DEFAULT_ROOMS[0];
+      const activeList = getTriviaQuestionsForRoom(room);
+      state.triviaIndex = (state.triviaIndex + 1) % activeList.length;
       state.triviaAnsweredCurrent = false;
       renderTriviaPanel();
     }
@@ -5579,6 +5750,106 @@
       box.scrollTop = box.scrollHeight;
     }
 
+    const MOVIE_KNOWLEDGE_BASE = [
+      {
+        match: /godzilla|kong/i,
+        summary: "Godzilla vs. Kong (2021) kể về cuộc đối đầu kinh thiên động địa giữa hai Titan tối thượng. Tổ chức Monarch phát hiện nguồn năng lượng cổ đại ở Trái Đất Rỗng (Hollow Earth) và đưa Kong về quê hương tổ tiên, trong khi tập đoàn Apex bí mật chế tạo Mechagodzilla bằng hộp sọ Ghidorah.",
+        ending: "Ở trận chiến cuối tại Hong Kong, Godzilla đánh bại Kong nhưng không kết liễu đối thủ. Khi Mechagodzilla mất kiểm soát và áp đảo Godzilla, Kong hồi tỉnh cầm rìu chiến đấu cùng Godzilla phá hủy Mechagodzilla, rồi cả hai gầm vang thừa nhận lãnh thổ của nhau.",
+        castTrivia: "Đạo diễn Adam Wingard; dàn diễn viên gồm Alexander Skarsgård, Millie Bobby Brown, Rebecca Hall, Brian Tyree Henry và Shun Oguri. Phần lớn cảnh chiến đấu tại Hong Kong được dựng CGI hoàn toàn bởi Weta Digital và Scanline VFX với hơn 1.000 khung hình kỹ xảo.",
+        characters: "Godzilla (Titan Alpha thống trị mặt đất/đại dương), Kong (vua đảo Đầu Lâu có trí tuệ và dùng rìu năng lượng), và Mechagodzilla (robot khổng lồ mang ý thức còn sót lại của King Ghidorah)."
+      },
+      {
+        match: /chú thuật|jujutsu|tử diệt|jjk/i,
+        summary: "Chú Thuật Hồi Chiến Mùa 3 (Tử Diệt Hồi Du) tiếp nối biến cố Shibuya khi Kenjaku kích hoạt trò chơi sinh tử trên khắp Nhật Bản. Itadori Yuji, Fushiguro Megumi và các chú thuật sư phải thu thập điểm, tìm Thiên Sứ để giải phong ấn Ngục Môn Cương cho Gojo Satoru.",
+        ending: "Mỗi tập trong Tử Diệt Hồi Du đẩy cao trào qua các kết giới tử thần: Yuji đối đầu luật sư thiên tài Higuruma với Lãnh Địa Triển Khai Phục Ma/Tru Tử Thuật, còn Okkotsu Yuta càn quét kết giới Sendai để mở đường giải cứu Gojo.",
+        castTrivia: "Do studio MAPPA sản xuất với chất lượng hoạt họa điện ảnh. Dàn lồng tiếng Nhật nổi bật gồm Junya Enoki (Yuji), Yuma Uchida (Megumi), Megumi Ogata (Yuta) và Yuichi Nakamura (Gojo).",
+        characters: "Itadori Yuji (vật chứa của Sukuna), Fushiguro Megumi (Thập Chủng Ảnh Pháp Thuật), Okkotsu Yuta (Đặc cấp chú thuật sư) và Hiromi Higuruma (luật sư thức tỉnh thuật thức xét xử)."
+      },
+      {
+        match: /quỷ dữ|resident evil/i,
+        summary: "Vùng Đất Quỷ Dữ (Resident Evil) xoay quanh thảm họa sinh học T-Virus do tập đoàn Umbrella gây ra tại thành phố Raccoon, biến cư dân thành xác sống và sinh vật đột biến nguy hiểm.",
+        ending: "Những người sống sót phải chạy đua với thời gian để thoát khỏi thành phố trước khi bị phong tỏa và tiêu hủy hoàn toàn, đồng thời hé lộ âm mưu sâu xa hơn của tập đoàn Umbrella.",
+        castTrivia: "Lấy cảm hứng từ thương hiệu game sinh tồn kinh điển của Capcom, nổi bật với bầu không khí căng thẳng, hành động dồn dập và thiết kế quái vật rùng rợn.",
+        characters: "Các nhân vật trung tâm thường xoay quanh lực lượng đặc nhiệm S.T.A.R.S, Leon S. Kennedy, Claire Redfield, Jill Valentine hoặc Alice đối đầu tập đoàn Umbrella."
+      },
+      {
+        match: /tháng tư|hà anh tuấn/i,
+        summary: "MV 'Tháng Tư Là Lời Nói Dối Của Em' của Hà Anh Tuấn (cùng Thanh Hằng) là bản ballad lãng mạn về ký ức tình yêu trong trẻo, tiếc nuối nhưng dịu dàng giữa khung cảnh Đà Lạt mộng mơ.",
+        ending: "Câu chuyện khép lại bằng dư âm hoài niệm của chàng trai khi nhớ về người thương đã xa, biến nỗi buồn chia ly thành lời chúc bình yên.",
+        castTrivia: "Ca khúc do Phạm Toàn Thắng sáng tác, phát hành năm 2016 với sự góp mặt của siêu mẫu Thanh Hằng, trở thành một trong những MV V-Pop mang tính biểu tượng nhất.",
+        characters: "Hà Anh Tuấn và siêu mẫu Thanh Hằng hóa thân thành đôi tình nhân lưu giữ những khoảnh khắc thanh xuân."
+      }
+    ];
+
+    async function fetchWikiMovieFact(query) {
+      try {
+        const searchUrl = `https://vi.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json&origin=*`;
+        const res = await fetch(searchUrl);
+        const data = await res.json();
+        const first = data?.query?.search?.[0];
+        if (!first) return "";
+        const sumRes = await fetch(`https://vi.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(first.title)}`);
+        const sumData = await sumRes.json();
+        return sumData?.extract ? `📚 (${first.title}): ${sumData.extract.slice(0, 320)}${sumData.extract.length > 320 ? "..." : ""}` : "";
+      } catch (e) {
+        return "";
+      }
+    }
+
+    async function generateSmartMovieAIReply(q, room) {
+      const apiKey = (localStorage.getItem("cineverse_gemini_key") || "").trim();
+      if (apiKey) {
+        try {
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+          const res = await fetch(apiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              systemInstruction: {
+                parts: [{ text: "Bạn là Trợ lý Điện ảnh thông minh trong rạp CineVerse Lotte. Trả lời đúng trọng tâm câu hỏi của khán giả bằng tiếng Việt (2-5 câu), tự nhiên và chính xác." }]
+              },
+              contents: [{
+                parts: [{ text: `Phim đang chiếu: "${room.movieTitle}" (Thể loại: ${room.genre}, Thời lượng: ${room.duration}, Diễn viên: ${room.cast || ""}, Tóm tắt: ${room.synopsis || ""}). Câu hỏi: ${q}` }]
+              }]
+            })
+          });
+          const data = await res.json();
+          const geminiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (geminiText) return geminiText;
+        } catch (e) {}
+      }
+
+      const lower = q.toLowerCase();
+      const kb = MOVIE_KNOWLEDGE_BASE.find(item => item.match.test(`${room.movieTitle} ${q}`));
+
+      if (/(tóm tắt|nội dung|cốt truyện|kể về|là gì|nói về)/i.test(lower)) {
+        return `📖 Tóm tắt "${room.movieTitle}": ${kb ? kb.summary : (room.synopsis || "Tác phẩm đang chiếu tại rạp CineVerse với nhịp phim cuốn hút.")}`;
+      }
+      if (/(kết|ending|cuối phim|ai thắng|thắng|chết|kết thúc)/i.test(lower)) {
+        return `💡 Giải thích kết phim "${room.movieTitle}": ${kb ? kb.ending : "Cao trào cuối phim giải quyết nút thắt lớn nhất của câu chuyện, mang lại dư âm mạnh mẽ cho khán giả."}`;
+      }
+      if (/(hậu trường|diễn viên|đạo diễn|ai đóng|kỹ xảo|cgi|studio|sản xuất|cast)/i.test(lower)) {
+        return `🎬 Hậu trường & Diễn viên: ${kb ? kb.castTrivia : (`Dàn diễn viên / nhân vật nổi bật: ${room.cast || "Đang cập nhật"}. Chất lượng chiếu: ${room.quality || "HD 1080P"}.`)}`;
+      }
+      if (/(nhân vật|vai|năng lực|sức mạnh|là ai)/i.test(lower)) {
+        if (kb) return `🦸 Nhân vật trong phim: ${kb.characters}`;
+      }
+      if (/(hay không|đáng xem|điểm|review|đánh giá|nhận xét)/i.test(lower)) {
+        return `⭐ Đánh giá "${room.movieTitle}": Mức độ phù hợp ${room.matchScore || "98%"}, phân loại ${room.ageRating || "T16+"}, thể loại ${room.genre}. Rất đáng xem trên màn hình cong IMAX cùng bạn bè!`;
+      }
+      if (/(bao lâu|thời lượng|mấy tiếng|mấy phút|dài)/i.test(lower)) {
+        return `⏱️ Thời lượng của "${room.movieTitle}" là ${room.duration || "đang cập nhật"}, phát chuẩn ${room.quality || "1080P"}.`;
+      }
+      if (/(ghế|ngồi|góc nhìn|âm thanh|nhạc|ost|phụ đề)/i.test(lower)) {
+        return `🪑 Gợi ý rạp: Hàng ghế F (đặc biệt ghế đôi F4, F5) cho góc nhìn chính giữa màn hình cong IMAX và chữ phụ đề to rõ nhất. Bạn có thể bấm "Phụ đề & AI" để tải hoặc dịch phụ đề tự động!`;
+      }
+
+      const wikiFact = await fetchWikiMovieFact(`${q} ${room.movieTitle.split("(")[0].split("-")[0].trim()}`);
+      if (wikiFact) return wikiFact;
+
+      return `🤖 Về câu hỏi "${q}" trong phim "${room.movieTitle}": ${kb ? kb.summary : (room.synopsis || "Bạn có thể hỏi cụ thể hơn về tóm tắt, kết phim, nhân vật, diễn viên hoặc thời lượng nhé!")}`;
+    }
+
     async function askAIMovieCompanion(questionText) {
       const q = (questionText || "").trim();
       if (!q) return;
@@ -5593,29 +5864,13 @@
         btn.textContent = "...";
       }
 
-      const apiKey = "";
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-
       try {
-        const res = await fetch(apiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            systemInstruction: {
-              parts: [{ text: "Bạn là Trợ lý Điện ảnh thông minh trong rạp chiếu phim CineVerse Lotte. Hãy trả lời ngắn gọn (2-4 câu), cuốn hút và giàu cảm xúc bằng tiếng Việt." }]
-            },
-            contents: [{
-              parts: [{ text: `Bộ phim đang chiếu trong phòng là "${room.movieTitle}" (Thể loại: ${room.genre}, Tóm tắt: ${room.synopsis || ""}). Khán giả hỏi: ${q}` }]
-            }]
-          })
-        });
-        const data = await res.json();
-        const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || `Bộ phim "${room.movieTitle}" mang đến cao trào cảm xúc mạnh mẽ cùng góc quay điện ảnh mãn nhãn. ${room.synopsis || ""}`;
+        const reply = await generateSmartMovieAIReply(q, room);
         state.aiMessages.push({ role: "ai", text: reply });
       } catch (e) {
         state.aiMessages.push({
           role: "ai",
-          text: `🎬 Về "${room.movieTitle}": ${room.synopsis || "Tác phẩm nổi bật với kỹ xảo ấn tượng và âm thanh vòm sống động khi thưởng thức từ hàng ghế F giữa rạp."}`
+          text: `🎬 Về "${room.movieTitle}": ${room.synopsis || "Bạn thử hỏi lại câu khác về cốt truyện, kết phim hoặc diễn viên nhé!"}`
         });
       } finally {
         if (btn) {
@@ -6014,8 +6269,12 @@
       if (quickInput) quickInput.value = cleanUrl;
 
       const room = getEffectiveRoom(state.currentRoomId);
+      state.triviaIndex = 0;
+      state.triviaAnsweredCurrent = false;
       updateRoomHeaderUI();
       setupRoomVideoPlayer(room);
+      if (state.sidebarTab === "playlist") renderPlaylistQueue();
+      if (state.sidebarTab === "trivia") renderTriviaPanel();
       broadcastRoomVideoSync("source");
       showToast(`🎬 Đang chiếu: "${finalTitle}"!`, "success");
     }
@@ -6117,7 +6376,13 @@
       const chatRef = rtdbMod.query(rtdbMod.ref(rtdb, `chat/${roomId}`), rtdbMod.limitToLast(60));
       roomChatUnsub = rtdbMod.onValue(chatRef, (snap) => {
         const val = snap.val();
-        if (!val) return;
+        if (!val) {
+          state.chatByRoom[roomId] = [];
+          if (state.currentRoomId === roomId) {
+            renderChatMessages();
+          }
+          return;
+        }
         if (!state.chatByRoom[roomId]) state.chatByRoom[roomId] = [];
         let changed = false;
         const now = Date.now();
@@ -6728,6 +6993,13 @@
                 merged[seatId] = info;
               }
             });
+            const prevRealCount = Object.values(prevRoom).filter(s => s && s.isReal).length;
+            const remoteRealCount = Object.values(remoteRoom).filter(s => s && s.isReal).length;
+            if (hasSyncedInitialSeats && prevRealCount > 0 && remoteRealCount === 0) {
+              state.chatByRoom[r.id] = [];
+              rtdbMod.remove(rtdbMod.ref(rtdb, `chat/${r.id}`)).catch(() => {});
+            }
+
             state.seatsByRoom[r.id] = merged;
           });
 
