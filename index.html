@@ -57,12 +57,32 @@
       filter: brightness(1);
       border-color: rgba(255, 255, 255, 0.12) !important;
     }
-    /* Tắt toàn bộ đèn trần Halogen & đèn hắt tường khi vào suất chiếu */
+    /* Tắt toàn bộ đèn trần Halogen & đèn hắt tường khi vào suất chiếu + Zoom màn hình ra giữa */
+    .auditorium-wrapper,
+    .screen-stage-box {
+      transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), max-width 0.45s ease, box-shadow 0.45s ease;
+    }
     body.theater-dimmed .auditorium-wrapper {
+      grid-column: 1 / -1 !important;
+      max-width: 1140px;
+      width: 100%;
+      margin-left: auto;
+      margin-right: auto;
       background:
         radial-gradient(ellipse at 50% 22%, rgba(56, 189, 248, 0.08) 0%, rgba(2, 2, 5, 0.98) 54%, #000000 100%) !important;
       border-color: #08080c !important;
       box-shadow: inset 0 0 150px #000000, 0 0 90px #000000 !important;
+    }
+    body.theater-dimmed .screen-stage-box {
+      transform: scale(1.03);
+      z-index: 35;
+    }
+    body.theater-dimmed .theater-sidebar-card {
+      grid-column: 1 / -1 !important;
+      max-width: 780px;
+      width: 100%;
+      margin-left: auto;
+      margin-right: auto;
     }
     body.theater-dimmed .ceiling-canopy {
       background: linear-gradient(180deg, #000000 0%, #050507 100%) !important;
