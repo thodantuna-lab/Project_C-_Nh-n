@@ -62,9 +62,13 @@
     .screen-stage-box {
       transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), max-width 0.45s ease, box-shadow 0.45s ease;
     }
+    body.theater-dimmed #room-view {
+      max-width: 85vw !important;
+      transition: max-width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    }
     body.theater-dimmed .auditorium-wrapper {
       grid-column: 1 / -1 !important;
-      max-width: 1140px;
+      max-width: 100% !important;
       width: 100%;
       margin-left: auto;
       margin-right: auto;
@@ -74,7 +78,8 @@
       box-shadow: inset 0 0 150px #000000, 0 0 90px #000000 !important;
     }
     body.theater-dimmed .screen-stage-box {
-      transform: scale(1.03);
+      transform: none;
+      width: 100%;
       z-index: 35;
     }
     body.theater-dimmed .theater-sidebar-card {
