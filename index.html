@@ -1403,6 +1403,14 @@
           <span id="vault-count-badge" class="px-1.5 py-0.5 rounded-full bg-black/40 text-[10px] font-black text-emerald-200">2</span>
         </button>
 
+        <!-- Nút Quản Trị Chủ Web (Set phim từng phòng đồng bộ mọi người) -->
+        <button type="button" id="btn-admin-panel" onclick="window.appActions.openAdminPanelModal()"
+          class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/25 to-rose-600/25 hover:from-amber-500/40 hover:to-rose-600/40 border border-amber-400/50 text-amber-300 text-xs font-black shadow-lg transition cursor-pointer"
+          title="Chủ Web: Setup phim cho từng phòng & đồng bộ tất cả người xem">
+          <i class="fa-solid fa-crown text-amber-400"></i>
+          <span class="hidden sm:inline">Chủ Web</span>
+        </button>
+
         <!-- Tên khán giả -->
         <button type="button" onclick="window.appActions.openNameModal()"
           class="flex items-center gap-2 px-3 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 border border-amber-500/30 text-xs font-bold text-amber-300 transition cursor-pointer">
@@ -1762,10 +1770,6 @@
             <button type="button" id="btn-room-host" onclick="window.appActions.toggleRoomHost()"
               class="px-2 py-0.5 rounded-lg bg-stone-800 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-[11px] transition cursor-pointer">
               <i class="fa-solid fa-crown mr-1"></i>Nhận Chủ Trì
-            </button>
-            <button type="button" id="btn-room-mic" onclick="window.appActions.toggleVoiceMic()"
-              class="px-2 py-0.5 rounded-lg bg-stone-800 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[11px] transition cursor-pointer">
-              <i class="fa-solid fa-microphone-slash mr-1"></i>Bật Mic
             </button>
             <div id="voice-audio-container" class="hidden"></div>
           </div>
@@ -3121,6 +3125,70 @@
     </div>
   </div>
 
+  <!-- ========================================================= -->
+  <!-- MODAL 5: 👑 BẢNG ĐIỀU KHIỂN CHỦ WEB (ĐỒNG BỘ LỊCH CHIẾU)  -->
+  <!-- ========================================================= -->
+  <div id="admin-panel-modal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+    <div class="bg-stone-950 border border-amber-400/35 rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden shadow-[0_25px_90px_rgba(0,0,0,0.98)]">
+      <div class="px-5 py-4 bg-gradient-to-r from-amber-950/60 via-stone-900 to-rose-950/60 border-b border-white/10 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-rose-600 flex items-center justify-center text-slate-950 text-lg shadow-lg">
+            <i class="fa-solid fa-crown"></i>
+          </div>
+          <div>
+            <h3 class="text-base sm:text-lg font-black text-white">Quản Trị Chủ Web • Setup Phim Các Phòng</h3>
+            <p class="text-xs text-amber-200/80">Chọn phim đang chiếu cho từng phòng và đồng bộ tức thì tới tất cả người tham gia</p>
+          </div>
+        </div>
+        <button type="button" onclick="window.appActions.closeAdminPanelModal()"
+          class="w-9 h-9 rounded-full bg-stone-800 hover:bg-rose-600 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto flex-1 space-y-4">
+        <!-- Cổng xác thực Chủ Web -->
+        <div id="admin-lock-screen" class="max-w-md mx-auto py-8 text-center space-y-4">
+          <div class="w-14 h-14 mx-auto rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-2xl">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <div>
+            <h4 class="text-base font-black text-white">Xác Thực Quyền Chủ Web</h4>
+            <p class="text-xs text-slate-400 mt-1">Nhập mã PIN Chủ Web (mặc định: <strong class="text-amber-300">2026</strong>) để chỉnh lịch chiếu & quản lý phòng.</p>
+          </div>
+          <form onsubmit="window.appActions.unlockAdminPanel(event)" class="flex gap-2">
+            <input id="admin-pin-input" type="password" placeholder="Nhập mã PIN Chủ Web..."
+              class="flex-1 px-3.5 py-2.5 rounded-xl bg-stone-900 border border-amber-400/40 text-sm text-white font-bold focus:outline-none focus:border-amber-400" />
+            <button type="submit"
+              class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-rose-500 text-slate-950 font-black text-xs cursor-pointer">
+              Mở Khóa
+            </button>
+          </form>
+        </div>
+
+        <!-- Bảng Setup 7 Phòng -->
+        <div id="admin-rooms-editor" class="hidden space-y-3"></div>
+      </div>
+
+      <div id="admin-panel-footer" class="hidden px-5 py-3.5 bg-stone-900/95 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
+        <span class="text-[11px] text-slate-400">
+          <i class="fa-solid fa-tower-broadcast text-emerald-400 mr-1"></i>Mọi thay đổi được đẩy lên Firebase Realtime và đồng bộ cho toàn bộ người xem.
+        </span>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="window.appActions.closeAdminPanelModal()"
+            class="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-slate-200 text-xs font-bold cursor-pointer">
+            Đóng
+          </button>
+          <button type="button" onclick="window.appActions.saveAdminLobbyConfig()"
+            class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-400 via-rose-500 to-purple-600 text-slate-950 font-black text-xs shadow-lg cursor-pointer flex items-center gap-1.5">
+            <i class="fa-solid fa-floppy-disk"></i>
+            <span>Lưu & Đồng Bộ Tất Cả Người Xem</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST THÔNG BÁO -->
   <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none"></div>
 
@@ -3512,6 +3580,8 @@
           createdAt: Date.now() - ((idx + 1) * 1000)
         }))
       ],
+      lobbyConfigRooms: {},
+      isAdminUnlocked: (() => { try { return localStorage.getItem("cineverse_admin_unlocked") === "1"; } catch (e) { return false; } })(),
       seatsByRoom: {
         "room-1": {
           "C4": { uid: "bot_1", userName: "Minh Anh", snack: "🍿🥤" },
@@ -3654,8 +3724,11 @@
 
     function getEffectiveRoom(roomId) {
       const base = DEFAULT_ROOMS.find(r => r.id === roomId) || DEFAULT_ROOMS[0];
+      const adminCfg = (state.lobbyConfigRooms && state.lobbyConfigRooms[roomId]) || {};
       const custom = state.roomsCustom[roomId] || {};
-      return { ...base, ...custom };
+      const merged = { ...base, ...adminCfg, ...custom };
+      merged.poster = resolveMoviePoster(merged.movieTitle, merged.poster, merged.youtubeId);
+      return merged;
     }
 
     function getMySeatInRoom(roomId) {
@@ -5635,12 +5708,22 @@
     }
 
     function resolveMoviePoster(title = "", existingPoster = "", youtubeId = "") {
+      try {
+        const rawCache = localStorage.getItem("cineverse_poster_cache_v1");
+        if (rawCache && title) {
+          const map = JSON.parse(rawCache);
+          if (map && map[title]) return map[title];
+        }
+      } catch (e) {}
       const t = (title || "").toLowerCase();
       if (t.includes("meg 2") || t.includes("cá mập siêu bạo chúa 2") || t.includes("vực sâu")) {
-        return "https://upload.wikimedia.org/wikipedia/en/8/8a/Meg_2_The_Trench_poster.jpg";
+        return "https://image.tmdb.org/t/p/w780/6x2CNod5RB3NkXSBJ81Y8KNy4g3.jpg";
+      }
+      if (t.includes("cơn thịnh nộ") || t.includes("wrath of man")) {
+        return "https://image.tmdb.org/t/p/w780/xNxcKSJc9wWpMMyr6spKIucUNop.jpg";
       }
       if (t.includes("đảo đầu lâu") || t.includes("skull island")) {
-        return "https://upload.wikimedia.org/wikipedia/en/d/df/Kong_Skull_Island_poster.jpg";
+        return "https://static.tvmaze.com/uploads/images/original_untouched/462/1156006.jpg";
       }
       if (t.includes("godzilla") || t.includes("kong")) {
         return "https://upload.wikimedia.org/wikipedia/en/6/63/Godzilla_vs._Kong.png";
@@ -5650,9 +5733,6 @@
       }
       if (t.includes("chú thuật") || t.includes("jujutsu") || t.includes("tử diệt")) {
         return "https://upload.wikimedia.org/wikipedia/en/7/7a/Jujutsu_Kaisen_S3_V1_BD.png";
-      }
-      if (t.includes("cơn thịnh nộ")) {
-        return "https://images.unsplash.com/photo-1509347528160-9a9e33742cdb?auto=format&fit=crop&w=800&q=80";
       }
       if (youtubeId) {
         return `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
@@ -5750,7 +5830,7 @@
         return `
           <div class="bg-stone-900/95 border border-white/10 hover:border-emerald-400/50 rounded-2xl p-3 flex gap-3.5 items-center transition group">
             <div class="relative w-32 h-20 rounded-xl overflow-hidden bg-black shrink-0 border border-white/10">
-              <img src="${escapeHTML(item.poster)}" alt="${escapeHTML(item.title)}"
+              <img src="${escapeHTML(resolveMoviePoster(item.title, item.poster, item.youtubeId))}" alt="${escapeHTML(item.title)}"
                    onerror="this.src='https://placehold.co/320x180/1c1917/10b981?text=Video+Vault'"
                    class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
               <span class="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-mono font-bold text-white">
@@ -7815,12 +7895,46 @@
           cleanupRoomVoice(state.currentRoomId);
         });
 
-        // Lắng nghe ghế ngồi của cả 6 phòng theo thời gian thực + phát hiện vào/ra phòng
+        // Lắng nghe cấu hình lịch chiếu từ Chủ Web (đồng bộ tất cả người tham gia)
+        rtdbMod.onValue(rtdbMod.ref(rtdb, "lobby_config/rooms"), (snap) => {
+          const val = snap.val() || {};
+          state.lobbyConfigRooms = val;
+          renderHeroBillboard();
+          renderLobby();
+          if (state.currentRoomId) {
+            const room = getEffectiveRoom(state.currentRoomId);
+            const titleEl = document.getElementById("room-header-title");
+            if (titleEl) titleEl.textContent = room.movieTitle;
+            renderTheaterLeftMovieList();
+          }
+          autoResolveMissingPostersWithAI();
+        }, () => {});
+
+        // Duy trì heartbeat ghế đang ngồi mỗi 60s để tránh bị dọn nhầm
+        setInterval(() => {
+          if (state.currentRoomId) {
+            const mySeat = getMySeatInRoom(state.currentRoomId);
+            if (mySeat) syncMySeatToRTDB(state.currentRoomId, mySeat);
+          }
+        }, 60000);
+
+        // Lắng nghe ghế ngồi của các phòng theo thời gian thực + tự dọn ghế treo quá 2 giờ
         rtdbMod.onValue(rtdbMod.ref(rtdb, "seats"), (snap) => {
           const allRemote = snap.val() || {};
+          const nowTs = Date.now();
           DEFAULT_ROOMS.forEach(r => {
             const prevRoom = state.seatsByRoom[r.id] || {};
-            const remoteRoom = allRemote[r.id] || {};
+            const rawRemote = allRemote[r.id] || {};
+            const remoteRoom = {};
+            Object.entries(rawRemote).forEach(([seatId, info]) => {
+              if (!info || !info.uid) return;
+              const isStale = info.uid !== state.uid && info.updatedAt && (nowTs - info.updatedAt > 7200000);
+              if (isStale) {
+                rtdbMod.remove(rtdbMod.ref(rtdb, `seats/${r.id}/${seatId}`)).catch(() => {});
+                return;
+              }
+              remoteRoom[seatId] = info;
+            });
 
             if (hasSyncedInitialSeats && state.currentRoomId === r.id) {
               Object.entries(remoteRoom).forEach(([seatId, info]) => {
@@ -8618,6 +8732,9 @@
 
       if (updatedFromCache) {
         renderTheaterLeftMovieList();
+        renderVideoVaultGrid();
+        renderLobby();
+        renderHeroBillboard();
       }
 
       for (const item of toFetch.slice(0, 6)) {
@@ -8630,6 +8747,8 @@
             saveCachedPoster(item.title, data.poster);
             renderTheaterLeftMovieList();
             renderVideoVaultGrid();
+            renderLobby();
+            renderHeroBillboard();
           }
         } catch (e) {}
       }
@@ -8742,6 +8861,178 @@
     });
 
     // Đăng ký đầy đủ các hàm vào window.appActions
+    // =========================================================
+    // 10. QUẢN TRỊ CHỦ WEB (SETUP LỊCH CHIẾU & ĐỒNG BỘ MỌI NGƯỜI)
+    // =========================================================
+    const ADMIN_DEFAULT_PIN = "2026";
+
+    function openAdminPanelModal() {
+      const modal = document.getElementById("admin-panel-modal");
+      if (!modal) return;
+      modal.classList.remove("hidden");
+      const lockScreen = document.getElementById("admin-lock-screen");
+      const editor = document.getElementById("admin-rooms-editor");
+      const footer = document.getElementById("admin-panel-footer");
+      if (state.isAdminUnlocked) {
+        if (lockScreen) lockScreen.classList.add("hidden");
+        if (editor) editor.classList.remove("hidden");
+        if (footer) footer.classList.remove("hidden");
+        renderAdminRoomsEditor();
+      } else {
+        if (lockScreen) lockScreen.classList.remove("hidden");
+        if (editor) editor.classList.add("hidden");
+        if (footer) footer.classList.add("hidden");
+        setTimeout(() => document.getElementById("admin-pin-input")?.focus(), 100);
+      }
+    }
+
+    function closeAdminPanelModal() {
+      document.getElementById("admin-panel-modal")?.classList.add("hidden");
+    }
+
+    function unlockAdminPanel(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById("admin-pin-input");
+      const pin = (input ? input.value : "").trim();
+      const savedPin = (() => { try { return localStorage.getItem("cineverse_admin_pin") || ADMIN_DEFAULT_PIN; } catch (err) { return ADMIN_DEFAULT_PIN; } })();
+      if (pin !== savedPin && pin !== ADMIN_DEFAULT_PIN) {
+        showToast("❌ Mã PIN Chủ Web không đúng! (Mặc định: 2026)", "error");
+        return;
+      }
+      state.isAdminUnlocked = true;
+      try { localStorage.setItem("cineverse_admin_unlocked", "1"); } catch (err) {}
+      showToast("👑 Đã mở khóa quyền Chủ Web!", "success");
+      openAdminPanelModal();
+    }
+
+    function renderAdminRoomsEditor() {
+      const container = document.getElementById("admin-rooms-editor");
+      if (!container) return;
+      const vaultOptions = (state.vaultVideos || []).map(v =>
+        `<option value="${escapeHTML(v.id)}">${escapeHTML(v.title)}</option>`
+      ).join("");
+
+      container.innerHTML = DEFAULT_ROOMS.map(baseRoom => {
+        const eff = getEffectiveRoom(baseRoom.id);
+        const seatsCount = Object.keys(state.seatsByRoom[baseRoom.id] || {}).length;
+        return `
+          <div class="p-3.5 rounded-2xl bg-stone-900/90 border border-white/10 space-y-2.5">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-0.5 rounded-lg bg-rose-600 text-white text-xs font-black">${escapeHTML(eff.number)}</span>
+                <span class="text-xs font-bold text-slate-300">${eff.isCoupleRoom ? "Phòng Đôi VIP (2 ghế)" : "Phòng Tiêu Chuẩn (48 ghế)"}</span>
+                <span class="text-[11px] text-amber-300 font-semibold">• ${seatsCount} ghế đang ngồi</span>
+              </div>
+              <button type="button" onclick="window.appActions.clearRoomSeatsAdmin('${baseRoom.id}')"
+                class="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-rose-600 text-slate-300 hover:text-white text-[11px] font-bold transition cursor-pointer">
+                <i class="fa-solid fa-broom mr-1"></i>Dọn sạch ghế phòng này
+              </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-2.5">
+              <div class="md:col-span-5 space-y-1">
+                <label class="text-[10px] font-bold uppercase text-amber-300 block">Chọn nhanh từ Kho Phim:</label>
+                <select id="admin-vault-pick-${baseRoom.id}"
+                  onchange="window.appActions.applyAdminVaultPick('${baseRoom.id}', this.value)"
+                  class="w-full px-2.5 py-2 rounded-xl bg-stone-950 border border-white/15 text-xs text-white focus:outline-none focus:border-amber-400">
+                  <option value="">-- Chọn phim trong Kho Phim --</option>
+                  ${vaultOptions}
+                </select>
+              </div>
+              <div class="md:col-span-5 space-y-1">
+                <label class="text-[10px] font-bold uppercase text-slate-300 block">Tên phim hiển thị:</label>
+                <input id="admin-title-${baseRoom.id}" type="text" value="${escapeHTML(eff.movieTitle)}"
+                  class="w-full px-2.5 py-2 rounded-xl bg-stone-950 border border-white/15 text-xs text-white font-semibold focus:outline-none focus:border-amber-400" />
+              </div>
+              <div class="md:col-span-2 space-y-1">
+                <label class="text-[10px] font-bold uppercase text-emerald-300 block">Trạng thái:</label>
+                <select id="admin-status-${baseRoom.id}"
+                  class="w-full px-2.5 py-2 rounded-xl bg-stone-950 border border-white/15 text-xs text-white font-bold focus:outline-none focus:border-amber-400">
+                  <option value="showing" ${eff.status === "showing" ? "selected" : ""}>Đang chiếu</option>
+                  <option value="upcoming" ${eff.status === "upcoming" ? "selected" : ""}>Sắp chiếu</option>
+                </select>
+              </div>
+              <div class="md:col-span-7 space-y-1">
+                <label class="text-[10px] font-bold uppercase text-sky-300 block">Link Video (.mp4 / YouTube):</label>
+                <input id="admin-url-${baseRoom.id}" type="text" value="${escapeHTML(eff.youtubeId ? `https://www.youtube.com/watch?v=${eff.youtubeId}` : (eff.videoUrl || ""))}"
+                  class="w-full px-2.5 py-2 rounded-xl bg-stone-950 border border-white/15 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-400" />
+              </div>
+              <div class="md:col-span-5 space-y-1">
+                <label class="text-[10px] font-bold uppercase text-purple-300 block">Poster URL (để trống AI tự tìm):</label>
+                <input id="admin-poster-${baseRoom.id}" type="text" value="${escapeHTML(eff.poster || "")}"
+                  class="w-full px-2.5 py-2 rounded-xl bg-stone-950 border border-white/15 text-xs text-slate-200 font-mono focus:outline-none focus:border-purple-400" />
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function applyAdminVaultPick(roomId, vaultId) {
+      if (!vaultId) return;
+      const item = (state.vaultVideos || []).find(v => v.id === vaultId);
+      if (!item) return;
+      const titleEl = document.getElementById(`admin-title-${roomId}`);
+      const urlEl = document.getElementById(`admin-url-${roomId}`);
+      const posterEl = document.getElementById(`admin-poster-${roomId}`);
+      const statusEl = document.getElementById(`admin-status-${roomId}`);
+      if (titleEl) titleEl.value = item.title || "";
+      if (urlEl) urlEl.value = item.youtubeId ? `https://www.youtube.com/watch?v=${item.youtubeId}` : (item.videoUrl || "");
+      if (posterEl) posterEl.value = resolveMoviePoster(item.title, item.poster, item.youtubeId);
+      if (statusEl) statusEl.value = "showing";
+    }
+
+    async function clearRoomSeatsAdmin(roomId) {
+      state.seatsByRoom[roomId] = {};
+      if (rtdb && rtdbMod) {
+        try {
+          await rtdbMod.remove(rtdbMod.ref(rtdb, `seats/${roomId}`));
+          await rtdbMod.remove(rtdbMod.ref(rtdb, `sync/${roomId}`));
+        } catch (e) {}
+      }
+      renderLobby();
+      renderHeroBillboard();
+      if (state.currentRoomId === roomId) {
+        renderSeatingMap();
+        renderAudienceList();
+        updateRoomHeaderUI();
+      }
+      renderAdminRoomsEditor();
+      showToast(`🧹 Đã dọn sạch toàn bộ ghế treo của phòng!`, "success");
+    }
+
+    async function saveAdminLobbyConfig() {
+      const payload = {};
+      DEFAULT_ROOMS.forEach(baseRoom => {
+        const title = (document.getElementById(`admin-title-${baseRoom.id}`)?.value || baseRoom.movieTitle).trim();
+        const rawUrl = (document.getElementById(`admin-url-${baseRoom.id}`)?.value || "").trim();
+        const rawPoster = (document.getElementById(`admin-poster-${baseRoom.id}`)?.value || "").trim();
+        const status = document.getElementById(`admin-status-${baseRoom.id}`)?.value || "showing";
+        const ytId = extractYouTubeId(rawUrl);
+        payload[baseRoom.id] = {
+          movieTitle: title,
+          status,
+          youtubeId: ytId || "",
+          videoUrl: ytId ? "" : rawUrl,
+          poster: resolveMoviePoster(title, rawPoster, ytId),
+          isCustomStartZero: true,
+          updatedAt: Date.now()
+        };
+      });
+
+      state.lobbyConfigRooms = payload;
+      if (rtdb && rtdbMod) {
+        try {
+          await rtdbMod.set(rtdbMod.ref(rtdb, "lobby_config/rooms"), payload);
+        } catch (e) {}
+      }
+      renderHeroBillboard();
+      renderLobby();
+      renderTheaterLeftMovieList();
+      autoResolveMissingPostersWithAI();
+      closeAdminPanelModal();
+      showToast("👑 Đã lưu & đồng bộ lịch chiếu mới tới toàn bộ người xem!", "success");
+    }
+
     window.appActions = {
       setRoomFilter,
       setSearchQuery,
@@ -8849,7 +9140,13 @@
       shareCapsuleToRoomChat,
       downloadCapsuleCardPNG,
       deleteMemoryCapsule,
-      syncFromR2Worker
+      syncFromR2Worker,
+      openAdminPanelModal,
+      closeAdminPanelModal,
+      unlockAdminPanel,
+      applyAdminVaultPick,
+      clearRoomSeatsAdmin,
+      saveAdminLobbyConfig
     };
 
     // Khởi chạy ứng dụng ngay lập tức
