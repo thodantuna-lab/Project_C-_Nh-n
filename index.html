@@ -7569,8 +7569,11 @@
       }
       if (myHostRoomId && rtdb && rtdbMod) {
         try { rtdbMod.remove(rtdbMod.ref(rtdb, `host/${myHostRoomId}`)); } catch (e) {}
+        try { rtdbMod.remove(rtdbMod.ref(rtdb, `effects/${myHostRoomId}`)); } catch (e) {}
       }
       myHostRoomId = null;
+      currentRoomHost = null;
+      renderRoomHostBadge();
     }
 
     async function toggleRoomHost() {
@@ -7593,11 +7596,14 @@
         myHostRoomId = roomId;
         myHostDisconnect = rtdbMod.onDisconnect(hostRef);
         await myHostDisconnect.remove();
-        await rtdbMod.set(hostRef, {
+        const hostObj = {
           uid: state.uid,
           userName: state.userName,
           updatedAt: Date.now()
-        });
+        };
+        await rtdbMod.set(hostRef, hostObj);
+        currentRoomHost = hostObj;
+        renderRoomHostBadge();
         startHostHeartbeat();
         broadcastRoomVideoSync("host");
         broadcastRoomEffectsSync();
@@ -7609,7 +7615,7 @@
 
     function broadcastRoomEffectsSync() {
       if (!rtdb || !rtdbMod || !state.currentRoomId || isApplyingRemoteSync) return;
-      if (currentRoomHost && currentRoomHost.uid && currentRoomHost.uid !== state.uid) return;
+      if (!isIAmHost()) return;
       const roomId = state.currentRoomId;
       rtdbMod.set(rtdbMod.ref(rtdb, `effects/${roomId}`), {
         dimmed: Boolean(state.dimmed),
@@ -7625,7 +7631,7 @@
     function applyRemoteRoomEffects(data, roomId, showChangeToast = false) {
       if (!data || state.currentRoomId !== roomId) return;
       if (data.uid === state.uid) return;
-      if (currentRoomHost && currentRoomHost.uid && data.uid !== currentRoomHost.uid) return;
+      if (!currentRoomHost || !currentRoomHost.uid || data.uid !== currentRoomHost.uid) return;
       let changed = false;
       if (typeof data.dimmed === "boolean" && data.dimmed !== state.dimmed) {
         applyDimLightsState(data.dimmed, true);
