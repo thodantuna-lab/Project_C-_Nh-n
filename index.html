@@ -2193,6 +2193,10 @@
                       class="px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-500/35 border border-emerald-400/40 text-emerald-300 font-extrabold transition cursor-pointer" title="Bật/Tắt Micro nói chuyện trực tiếp">
                       <i class="fa-solid fa-microphone-slash mr-1"></i>Bật Mic
                     </button>
+                    <button type="button" id="voice-diag-badge" onclick="window.appActions.resumePendingVoiceAudio && window.appActions.resumePendingVoiceAudio()"
+                      class="hidden px-2 py-1 rounded-lg bg-stone-900/90 border border-white/15 text-[10px] font-mono text-slate-300 cursor-pointer" title="Trạng thái kết nối Mic WebRTC (Bấm để mở khóa loa nếu bị trình duyệt chặn)">
+                      ICE: --
+                    </button>
                     <button type="button" onclick="window.appActions.toggleFullscreen()"
                       class="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-white font-bold transition cursor-pointer" title="Phóng to toàn màn hình">
                       <i class="fa-solid fa-expand"></i>
@@ -7937,6 +7941,56 @@
     let earlyIceByPeer = {}; // { [remoteUid]: RTCIceCandidateInit[] }
     let roomVoiceUnsub = null;
     let myVoiceDisconnect = null;
+    let voiceStatsTimer = null;
+
+    function stopVoiceStatsMonitor() {
+      if (voiceStatsTimer) {
+        clearInterval(voiceStatsTimer);
+        voiceStatsTimer = null;
+      }
+      const badge = document.getElementById("voice-diag-badge");
+      if (badge) badge.classList.add("hidden");
+    }
+
+    function startVoiceStatsMonitor() {
+      stopVoiceStatsMonitor();
+      voiceStatsTimer = setInterval(async () => {
+        const badge = document.getElementById("voice-diag-badge");
+        const entries = Object.values(voicePeers);
+        if (!state.currentRoomId || entries.length === 0) {
+          if (badge) badge.classList.add("hidden");
+          return;
+        }
+        resumePendingVoiceAudio();
+        let anyConnected = false;
+        let anyFailed = false;
+        let totalSent = 0;
+        let totalRecv = 0;
+        for (const entry of entries) {
+          if (!entry || !entry.pc) continue;
+          const st = entry.pc.iceConnectionState;
+          if (st === "connected" || st === "completed") anyConnected = true;
+          if (st === "failed") anyFailed = true;
+          try {
+            const stats = await entry.pc.getStats();
+            stats.forEach(rep => {
+              if (rep.type === "outbound-rtp" && rep.kind === "audio") {
+                totalSent += Number(rep.bytesSent || 0);
+              } else if (rep.type === "inbound-rtp" && rep.kind === "audio") {
+                totalRecv += Number(rep.bytesReceived || 0);
+              }
+            });
+          } catch (e) {}
+        }
+        if (badge) {
+          const iceText = anyConnected ? "OK" : (anyFailed ? "LỖI" : "ĐANG NỐI");
+          const sentKb = (totalSent / 1024).toFixed(0);
+          const recvKb = (totalRecv / 1024).toFixed(0);
+          badge.textContent = `Mic:${iceText} ↑${sentKb}K ↓${recvKb}K`;
+          badge.classList.remove("hidden");
+        }
+      }, 2500);
+    }
 
     function getOrCreateSilentVoiceStream() {
       if (silentVoiceStream && silentVoiceStream.getAudioTracks().some(t => t.readyState === "live")) {
@@ -8232,10 +8286,12 @@
       }, () => {});
 
       roomVoiceUnsub = () => {
+        stopVoiceStatsMonitor();
         unsubPeers();
         unsubSignals();
         unsubIce();
       };
+      startVoiceStatsMonitor();
     }
 
     function cleanupRoomVoice(roomId) {
@@ -8350,7 +8406,8 @@
           updatedAt: Date.now()
         }).catch(() => {});
       }
-      showToast("🎙️ Micro đã bật! Người cùng phòng có thể nghe thấy bạn nói.", "success");
+      const micLabel = track.label ? ` (${track.label})` : "";
+      showToast(`🎙️ Micro đã bật${micLabel}! Người cùng phòng có thể nghe thấy bạn nói.`, "success");
     }
 
     async function initFirebase() {
@@ -9594,6 +9651,7 @@
       syncLiveTime,
       toggleRoomHost,
       toggleVoiceMic,
+      resumePendingVoiceAudio,
       cycleSubtitleMode,
       toggleSubtitleSettingsPanel,
       toggleAutoSubtitleBySeat,
