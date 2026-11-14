@@ -8024,15 +8024,21 @@
 
       pc.ontrack = (event) => {
         const stream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
-        audioEl.srcObject = stream;
-        audioEl.muted = false;
-        audioEl.volume = 1;
-        audioEl.play().catch(() => {
-          if (!window.__voiceAutoplayToastShown) {
-            window.__voiceAutoplayToastShown = true;
-            showToast("🔊 Bấm vào màn hình để mở tiếng Micro từ bạn bè (MacBook/Safari)!", "info");
-          }
-        });
+        const playRemoteAudio = () => {
+          audioEl.srcObject = stream;
+          audioEl.muted = false;
+          audioEl.volume = 1;
+          audioEl.play().catch(() => {
+            if (!window.__voiceAutoplayToastShown) {
+              window.__voiceAutoplayToastShown = true;
+              showToast("🔊 Bấm vào màn hình để mở tiếng Micro từ bạn bè!", "info");
+            }
+          });
+        };
+        playRemoteAudio();
+        if (event.track) {
+          event.track.onunmute = playRemoteAudio;
+        }
       };
 
       pc.onicecandidate = (event) => {
@@ -8129,7 +8135,10 @@
           handledSignals[sigKey] = true;
           try {
             if (sig.type === "offer") {
-              if (sig.fresh) closeVoicePeer(fromUid);
+              if (sig.fresh) {
+                closeVoicePeer(fromUid);
+                await rtdbMod.remove(rtdbMod.ref(rtdb, `voice/${roomId}/ice/${fromUid}/${state.uid}`)).catch(() => {});
+              }
               const entry = getOrCreateVoicePeer(roomId, fromUid);
               const polite = state.uid > fromUid;
               if (entry.pc.signalingState === "have-local-offer") {
