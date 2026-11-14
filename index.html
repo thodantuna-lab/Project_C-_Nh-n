@@ -3531,11 +3531,13 @@
         return;
       }
 
-      // Nếu không có ai đang xem trong phòng -> làm mới khung chat
+      // Nếu không có ai đang xem trong phòng -> làm mới khung chat & trạng thái phim mặc định
       if (otherRealCount === 0) {
         state.chatByRoom[roomId] = [];
+        delete state.roomsCustom[roomId];
         if (rtdb && rtdbMod) {
           rtdbMod.remove(rtdbMod.ref(rtdb, `chat/${roomId}`)).catch(() => {});
+          rtdbMod.remove(rtdbMod.ref(rtdb, `sync/${roomId}`)).catch(() => {});
         }
       }
 
@@ -3582,8 +3584,10 @@
         const remainingReal = Object.values(state.seatsByRoom[oldRoomId] || {}).some(s => s && s.isReal);
         if (!remainingReal) {
           state.chatByRoom[oldRoomId] = [];
+          delete state.roomsCustom[oldRoomId];
           if (rtdb && rtdbMod) {
             rtdbMod.remove(rtdbMod.ref(rtdb, `chat/${oldRoomId}`)).catch(() => {});
+            rtdbMod.remove(rtdbMod.ref(rtdb, `sync/${oldRoomId}`)).catch(() => {});
           }
         }
         clearMySeatFromRTDB();
@@ -7211,7 +7215,9 @@
             const remoteRealCount = Object.values(remoteRoom).filter(s => s && s.isReal).length;
             if (hasSyncedInitialSeats && prevRealCount > 0 && remoteRealCount === 0) {
               state.chatByRoom[r.id] = [];
+              delete state.roomsCustom[r.id];
               rtdbMod.remove(rtdbMod.ref(rtdb, `chat/${r.id}`)).catch(() => {});
+              rtdbMod.remove(rtdbMod.ref(rtdb, `sync/${r.id}`)).catch(() => {});
             }
 
             state.seatsByRoom[r.id] = merged;
