@@ -2287,6 +2287,26 @@
                     </div>
                   </div>
                 </div>
+
+                <div class="mt-2.5 pt-2.5 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-slate-300 font-semibold"><i class="fa-solid fa-clock-rotate-left text-amber-400 mr-1"></i>Đồng bộ trễ/sớm:</span>
+                    <span class="text-[10px] text-slate-400 hidden sm:inline">(Trễ tiếng → bấm <b class="text-amber-300">-0.5s</b>)</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <button type="button" onclick="window.appActions.adjustSubtitleOffset(-1)"
+                      class="px-2 py-0.5 rounded bg-stone-800 hover:bg-amber-500 hover:text-slate-950 text-white font-black text-[11px] border border-white/15 cursor-pointer" title="Đẩy phụ đề sớm lên 1 giây">-1s</button>
+                    <button type="button" onclick="window.appActions.adjustSubtitleOffset(-0.5)"
+                      class="px-2 py-0.5 rounded bg-stone-800 hover:bg-amber-500 hover:text-slate-950 text-white font-black text-[11px] border border-white/15 cursor-pointer" title="Đẩy phụ đề sớm lên 0.5 giây">-0.5s</button>
+                    <strong id="sub-offset-val" class="text-amber-300 font-mono min-w-[48px] text-center">0.0s</strong>
+                    <button type="button" onclick="window.appActions.adjustSubtitleOffset(0.5)"
+                      class="px-2 py-0.5 rounded bg-stone-800 hover:bg-amber-500 hover:text-slate-950 text-white font-black text-[11px] border border-white/15 cursor-pointer" title="Làm phụ đề chậm lại 0.5 giây">+0.5s</button>
+                    <button type="button" onclick="window.appActions.adjustSubtitleOffset(1)"
+                      class="px-2 py-0.5 rounded bg-stone-800 hover:bg-amber-500 hover:text-slate-950 text-white font-black text-[11px] border border-white/15 cursor-pointer" title="Làm phụ đề chậm lại 1 giây">+1s</button>
+                    <button type="button" onclick="window.appActions.resetSubtitleOffset()"
+                      class="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-slate-200 font-bold text-[10px] border border-white/10 cursor-pointer ml-0.5" title="Đưa về 0.0s">0s</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -3538,6 +3558,8 @@
         align: "center" // 'left' | 'center' | 'right'
       },
       customSubtitlesByRoom: {},
+      subtitleOffsetSec: 0,
+      subtitleOffsetsByKey: (() => { try { return JSON.parse(localStorage.getItem("cineverse_sub_offsets_v1") || "{}"); } catch (e) { return {}; } })(),
       roomsCustom: {},
       vaultVideos: [
         {
@@ -4640,6 +4662,81 @@
       return [];
     }
 
+    function getSubtitleSyncKey(room) {
+      if (!room) return "";
+      const raw = String(room.videoUrl || room.youtubeId || room.movieTitle || room.id || "").trim();
+      if (!raw) return "";
+      let h = 2166136261;
+      for (let i = 0; i < raw.length; i++) {
+        h ^= raw.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return `sub_${(h >>> 0).toString(36)}`;
+    }
+
+    function syncCurrentRoomSubtitleOffset(roomObj) {
+      const room = roomObj || getCurrentRoom();
+      if (!room) return;
+      const key = getSubtitleSyncKey(room);
+      const saved = key && typeof state.subtitleOffsetsByKey[key] === "number" ? state.subtitleOffsetsByKey[key] : 0;
+      state.subtitleOffsetSec = saved;
+      updateSubtitleOffsetUI();
+      const videoEl = document.getElementById("html5-video-player");
+      if (videoEl && !videoEl.classList.contains("hidden")) {
+        renderSubtitleAtTime(room, videoEl.currentTime || 0);
+      }
+    }
+
+    function persistSubtitleOffsetForRoom(room, offsetSec) {
+      if (!room) return;
+      const key = getSubtitleSyncKey(room);
+      if (!key) return;
+      state.subtitleOffsetsByKey[key] = offsetSec;
+      try {
+        localStorage.setItem("cineverse_sub_offsets_v1", JSON.stringify(state.subtitleOffsetsByKey));
+      } catch (e) {}
+      if (rtdb && rtdbMod) {
+        rtdbMod.set(rtdbMod.ref(rtdb, `subtitle_offsets/${key}`), {
+          offsetSec,
+          movieTitle: room.movieTitle || "",
+          updatedAt: Date.now()
+        }).catch(() => {});
+      }
+    }
+
+    function updateSubtitleOffsetUI() {
+      const el = document.getElementById("sub-offset-val");
+      if (!el) return;
+      const val = Number(state.subtitleOffsetSec) || 0;
+      const sign = val > 0 ? "+" : "";
+      el.textContent = `${sign}${val.toFixed(1)}s`;
+    }
+
+    function adjustSubtitleOffset(deltaSec) {
+      const next = Math.round(((Number(state.subtitleOffsetSec) || 0) + Number(deltaSec || 0)) * 10) / 10;
+      state.subtitleOffsetSec = Math.max(-60, Math.min(60, next));
+      updateSubtitleOffsetUI();
+      const room = getCurrentRoom();
+      if (room) persistSubtitleOffsetForRoom(room, state.subtitleOffsetSec);
+      const videoEl = document.getElementById("html5-video-player");
+      if (room && videoEl && !videoEl.classList.contains("hidden")) {
+        renderSubtitleAtTime(room, videoEl.currentTime || 0);
+      }
+      showToast(`Đã lưu đồng bộ phụ đề (${state.subtitleOffsetSec > 0 ? "+" : ""}${state.subtitleOffsetSec.toFixed(1)}s) cho mọi người`, "info");
+    }
+
+    function resetSubtitleOffset() {
+      state.subtitleOffsetSec = 0;
+      updateSubtitleOffsetUI();
+      const room = getCurrentRoom();
+      if (room) persistSubtitleOffsetForRoom(room, 0);
+      const videoEl = document.getElementById("html5-video-player");
+      if (room && videoEl && !videoEl.classList.contains("hidden")) {
+        renderSubtitleAtTime(room, videoEl.currentTime || 0);
+      }
+      showToast("Đã đặt lại & lưu đồng bộ phụ đề về 0.0s", "info");
+    }
+
     function renderSubtitleAtTime(room, currentSec) {
       const lyricsOverlay = document.getElementById("lyrics-overlay");
       const textEl = document.getElementById("sub-single-text");
@@ -4656,13 +4753,16 @@
         return;
       }
 
+      // Áp dụng độ bù đồng bộ phụ đề (âm = đẩy phụ đề sớm lên, dương = làm phụ đề chậm lại)
+      const syncedSec = Math.max(0, (Number(currentSec) || 0) - (Number(state.subtitleOffsetSec) || 0));
+
       // Chu kỳ thoại tự nhiên (giữ nguyên các khoảng lặng không có tiếng nói)
       const lastItem = cueList[cueList.length - 1];
       const lastEnd = Number(lastItem.end) || (Number(lastItem.time || 0) + 5);
       const cycleDuration = Math.max(24, lastEnd + 4.5);
-      const effectiveSec = (cueList === HA_ANH_TUAN_LYRICS && currentSec > 32)
-        ? (currentSec % 345)
-        : (currentSec % cycleDuration);
+      const effectiveSec = (cueList === HA_ANH_TUAN_LYRICS && syncedSec > 32)
+        ? (syncedSec % 345)
+        : (syncedSec % cycleDuration);
 
       // Chỉ tìm câu thoại khi thời gian hiện tại nằm đúng trong khoảng [start, end] lúc nhân vật đang nói
       let activeCue = null;
@@ -4970,6 +5070,7 @@
 
       stopRoomVideoPlayer();
       resetPlayerControlButtons();
+      syncCurrentRoomSubtitleOffset(room);
 
       // Nếu phòng đang ở trạng thái Sắp chiếu
       if (room.status === "upcoming") {
@@ -7923,6 +8024,20 @@
           autoResolveMissingPostersWithAI();
         }, () => {});
 
+        // Lắng nghe độ trễ phụ đề đã lưu vĩnh viễn cho từng phim (đồng bộ tất cả người mới)
+        rtdbMod.onValue(rtdbMod.ref(rtdb, "subtitle_offsets"), (snap) => {
+          const val = snap.val() || {};
+          Object.entries(val).forEach(([k, item]) => {
+            if (item && typeof item.offsetSec === "number") {
+              state.subtitleOffsetsByKey[k] = item.offsetSec;
+            }
+          });
+          try {
+            localStorage.setItem("cineverse_sub_offsets_v1", JSON.stringify(state.subtitleOffsetsByKey));
+          } catch (e) {}
+          syncCurrentRoomSubtitleOffset();
+        }, () => {});
+
         // Duy trì heartbeat ghế đang ngồi mỗi 60s để tránh bị dọn nhầm
         setInterval(() => {
           if (state.currentRoomId) {
@@ -9159,7 +9274,9 @@
       unlockAdminPanel,
       applyAdminVaultPick,
       clearRoomSeatsAdmin,
-      saveAdminLobbyConfig
+      saveAdminLobbyConfig,
+      adjustSubtitleOffset,
+      resetSubtitleOffset
     };
 
     // Khởi chạy ứng dụng ngay lập tức
