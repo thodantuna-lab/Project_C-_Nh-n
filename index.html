@@ -7931,10 +7931,35 @@
       return voiceTurnPromise;
     }
     let localVoiceStream = null;
+    let silentVoiceStream = null;
     let voiceMicActive = false;
     let voicePeers = {}; // { [remoteUid]: { pc, audioEl, pendingIce: [] } }
+    let earlyIceByPeer = {}; // { [remoteUid]: RTCIceCandidateInit[] }
     let roomVoiceUnsub = null;
     let myVoiceDisconnect = null;
+
+    function getOrCreateSilentVoiceStream() {
+      if (silentVoiceStream && silentVoiceStream.getAudioTracks().some(t => t.readyState === "live")) {
+        return silentVoiceStream;
+      }
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        if (!window.__voiceAudioCtx) window.__voiceAudioCtx = new Ctx();
+        const ctx = window.__voiceAudioCtx;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
+        const dst = ctx.createMediaStreamDestination();
+        osc.connect(gain);
+        gain.connect(dst);
+        osc.start();
+        silentVoiceStream = dst.stream;
+        return silentVoiceStream;
+      } catch (e) {
+        return null;
+      }
+    }
 
     function updateVoiceMicButtonUI() {
       const btnPlayer = document.getElementById("btn-player-mic");
@@ -8010,12 +8035,22 @@
       audioEl.volume = 1;
       if (container) container.appendChild(audioEl);
 
-      const entry = { pc, audioEl, pendingIce: [], makingOffer: false, audioSender: null, hadSentTrack: false };
+      const entry = {
+        pc,
+        audioEl,
+        pendingIce: Array.isArray(earlyIceByPeer[remoteUid]) ? earlyIceByPeer[remoteUid].splice(0) : [],
+        makingOffer: false,
+        audioSender: null,
+        hadSentTrack: false
+      };
       voicePeers[remoteUid] = entry;
 
-      if (localVoiceStream && localVoiceStream.getAudioTracks().length > 0) {
-        const track = localVoiceStream.getAudioTracks()[0];
-        entry.audioSender = pc.addTrack(track, localVoiceStream);
+      const activeStream = (localVoiceStream && localVoiceStream.getAudioTracks().some(t => t.readyState === "live"))
+        ? localVoiceStream
+        : getOrCreateSilentVoiceStream();
+      if (activeStream && activeStream.getAudioTracks().length > 0) {
+        const track = activeStream.getAudioTracks()[0];
+        entry.audioSender = pc.addTrack(track, activeStream);
         entry.hadSentTrack = true;
       } else {
         const transceiver = pc.addTransceiver("audio", { direction: "sendrecv" });
@@ -8117,6 +8152,7 @@
         Object.entries(peersMap).forEach(([rUid, info]) => {
           if (rUid !== state.uid && info && info.micOn && !seenMicToast[rUid]) {
             seenMicToast[rUid] = true;
+            resumePendingVoiceAudio();
             showToast(`🎙️ ${info.userName} vừa bật micro nói chuyện!`, "info");
           } else if (info && !info.micOn) {
             seenMicToast[rUid] = false;
@@ -8187,6 +8223,9 @@
               } else {
                 entry.pendingIce.push(cand);
               }
+            } else {
+              if (!earlyIceByPeer[fromUid]) earlyIceByPeer[fromUid] = [];
+              earlyIceByPeer[fromUid].push(cand);
             }
           }
         }
@@ -8205,6 +8244,7 @@
         roomVoiceUnsub = null;
       }
       Object.keys(voicePeers).forEach(closeVoicePeer);
+      earlyIceByPeer = {};
       if (localVoiceStream) {
         localVoiceStream.getTracks().forEach(t => t.stop());
         localVoiceStream = null;
@@ -8279,15 +8319,15 @@
       voiceMicActive = true;
       updateVoiceMicButtonUI();
 
-      // Gắn track vào kết nối hiện có; nếu kết nối ban đầu chưa từng gắn track thực, tạo lại peer có addTrack + fresh offer để iPad/Safari nhận đúng stream
+      // Thay thế trực tiếp track micro thật vào luồng WebRTC đã mở sẵn (không đóng/xé kết nối ICE)
       for (const [rUid, entry] of Object.entries(voicePeers)) {
         try {
           if (!entry || !entry.pc || entry.pc.connectionState === "closed") continue;
-          if (entry.hadSentTrack && entry.audioSender) {
+          if (entry.audioSender) {
             await entry.audioSender.replaceTrack(track);
+            entry.hadSentTrack = true;
           } else if (rtdb && rtdbMod) {
             closeVoicePeer(rUid);
-            await rtdbMod.remove(rtdbMod.ref(rtdb, `voice/${roomId}/ice/${rUid}/${state.uid}`)).catch(() => {});
             const freshEntry = getOrCreateVoicePeer(roomId, rUid);
             const offer = await freshEntry.pc.createOffer();
             await freshEntry.pc.setLocalDescription(offer);
