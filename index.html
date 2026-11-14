@@ -7895,14 +7895,41 @@
     // =========================================================
     // 7B. MICRO TRỰC TUYẾN WEBRTC QUA FIREBASE RTDB
     // =========================================================
+    const BASE_VOICE_STUN_SERVERS = [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" }
+    ];
     const VOICE_ICE_CONFIG = {
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-        { urls: "stun:stun2.l.google.com:19302" }
-      ],
+      iceServers: [...BASE_VOICE_STUN_SERVERS],
       iceCandidatePoolSize: 4
     };
+    let voiceTurnLastFetchedAt = 0;
+    let voiceTurnPromise = null;
+
+    async function ensureVoiceTurnLoaded() {
+      if (Date.now() - voiceTurnLastFetchedAt < 1800000 && VOICE_ICE_CONFIG.iceServers.length > BASE_VOICE_STUN_SERVERS.length) {
+        return;
+      }
+      if (voiceTurnPromise) return voiceTurnPromise;
+      const workerBase = (state.r2WorkerUrl || "").replace(/\/+$/, "");
+      if (!workerBase) return;
+      voiceTurnPromise = (async () => {
+        try {
+          const res = await fetch(`${workerBase}/turn`, { signal: AbortSignal.timeout(3500) });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data && data.ok && Array.isArray(data.iceServers) && data.iceServers.length > 0) {
+            VOICE_ICE_CONFIG.iceServers = [...BASE_VOICE_STUN_SERVERS, ...data.iceServers];
+            voiceTurnLastFetchedAt = Date.now();
+          }
+        } catch (e) {
+        } finally {
+          voiceTurnPromise = null;
+        }
+      })();
+      return voiceTurnPromise;
+    }
     let localVoiceStream = null;
     let voiceMicActive = false;
     let voicePeers = {}; // { [remoteUid]: { pc, audioEl, pendingIce: [] } }
@@ -8060,12 +8087,13 @@
       }
     }
 
-    function subscribeRoomVoice(roomId) {
+    async function subscribeRoomVoice(roomId) {
       if (roomVoiceUnsub) {
         roomVoiceUnsub();
         roomVoiceUnsub = null;
       }
       if (!rtdb || !rtdbMod || !roomId) return;
+      await ensureVoiceTurnLoaded();
 
       const myPeerRef = rtdbMod.ref(rtdb, `voice/${roomId}/peers/${state.uid}`);
       myVoiceDisconnect = rtdbMod.onDisconnect(myPeerRef);
