@@ -4975,65 +4975,126 @@
       }).catch(() => {});
     }
 
+    function isMostlyVietnameseCues(cues) {
+      const sample = (cues || []).slice(0, 25);
+      if (!sample.length) return false;
+      const viRe = /[ăâđêôơưàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ]/i;
+      let hits = 0;
+      for (const c of sample) {
+        if (viRe.test(String(c.en || ""))) hits++;
+      }
+      return hits >= Math.max(3, Math.ceil(sample.length * 0.3));
+    }
+
+    async function translateBatchWithGoogleFallback(slice) {
+      const joined = slice.map((c, idx) => `[[${idx}]] ${String(c.en || "").replace(/\r?\n/g, " ")}`).join("\n");
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(joined)}`;
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          const fullTranslated = Array.isArray(data?.[0]) ? data[0].map(seg => seg[0] || "").join("") : "";
+          const parts = fullTranslated.split(/(?:\[\[|\[|【)\s*(\d+)\s*(?:\]\]|\]|】)/);
+          let matchedCount = 0;
+          for (let p = 1; p < parts.length; p += 2) {
+            const idxNum = parseInt(parts[p], 10);
+            const txt = (parts[p + 1] || "").trim();
+            if (!isNaN(idxNum) && slice[idxNum] && txt) {
+              slice[idxNum].vi = txt;
+              matchedCount++;
+            }
+          }
+          if (matchedCount < Math.ceil(slice.length / 2)) {
+            const rawLines = fullTranslated.split(/\r?\n/).map(l => l.replace(/^(?:\[\[|\[|【)?\s*\d+\s*(?:\]\]|\]|】)?\s*/, "").trim()).filter(Boolean);
+            if (rawLines.length === slice.length) {
+              rawLines.forEach((line, idx) => { slice[idx].vi = line; });
+            }
+          }
+          return true;
+        } catch (e) {
+          if (attempt === 0) await new Promise(r => setTimeout(r, 450));
+        }
+      }
+      return false;
+    }
+
     async function translateCuesEnToVi(cues, roomId) {
       if (!cues || !cues.length) return;
+      if (isMostlyVietnameseCues(cues)) {
+        cues.forEach(c => { if (!c.vi || c.vi === c.en) c.vi = c.en; });
+        syncRoomSubtitlesToRTDB(roomId, cues, "Vietnamese .SRT");
+        showToast(`✅ Đã nạp sẵn ${cues.length} câu phụ đề Tiếng Việt!`, "success");
+        return;
+      }
+
       const btn = document.getElementById("btn-srt-upload");
-      const BATCH_SIZE = 20;
+      const workerBase = (state.r2WorkerUrl || "").replace(/\/+$/, "");
+      const room = getEffectiveRoom(roomId);
+      const movieTitle = room?.title || "Phim điện ảnh";
+      const BATCH_SIZE = workerBase ? 35 : 20;
       let done = 0;
+      let usedAI = false;
+      let aiDisabled = !workerBase;
 
       for (let i = 0; i < cues.length; i += BATCH_SIZE) {
         if (state.customSubtitlesByRoom[roomId] !== cues) return; // Người dùng đã đổi phim hoặc nạp file khác
         const slice = cues.slice(i, i + BATCH_SIZE);
-        const joined = slice.map((c, idx) => `[[${idx}]] ${String(c.en || "").replace(/\r?\n/g, " ")}`).join("\n");
+        let batchOk = false;
 
-        for (let attempt = 0; attempt < 2; attempt++) {
+        if (!aiDisabled) {
+          const contextPrev = cues.slice(Math.max(0, i - 3), i).map(c => String(c.vi || c.en || "").replace(/\r?\n/g, " ").trim()).filter(Boolean);
           try {
-            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(joined)}`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            const fullTranslated = Array.isArray(data?.[0]) ? data[0].map(seg => seg[0] || "").join("") : "";
-            const parts = fullTranslated.split(/(?:\[\[|\[|【)\s*(\d+)\s*(?:\]\]|\]|】)/);
-            let matchedCount = 0;
-            for (let p = 1; p < parts.length; p += 2) {
-              const idxNum = parseInt(parts[p], 10);
-              const txt = (parts[p + 1] || "").trim();
-              if (!isNaN(idxNum) && slice[idxNum] && txt) {
-                slice[idxNum].vi = txt;
-                matchedCount++;
-              }
+            const aiRes = await fetch(`${workerBase}/translate-srt`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                movieTitle,
+                lines: slice.map(c => String(c.en || "")),
+                contextPrev
+              })
+            });
+            const aiData = await aiRes.json();
+            if (aiData?.ok && Array.isArray(aiData.translations) && aiData.translations.length === slice.length) {
+              aiData.translations.forEach((txt, idx) => {
+                if (txt) slice[idx].vi = txt;
+              });
+              batchOk = true;
+              usedAI = true;
+            } else if (aiData?.error === "MISSING_GEMINI_KEY" || aiRes.status === 404) {
+              aiDisabled = true;
             }
-            if (matchedCount < Math.ceil(slice.length / 2)) {
-              const rawLines = fullTranslated.split(/\r?\n/).map(l => l.replace(/^(?:\[\[|\[|【)?\s*\d+\s*(?:\]\]|\]|】)?\s*/, "").trim()).filter(Boolean);
-              if (rawLines.length === slice.length) {
-                rawLines.forEach((line, idx) => { slice[idx].vi = line; });
-              }
-            }
-            break;
-          } catch (e) {
-            if (attempt === 0) await new Promise(r => setTimeout(r, 450));
-          }
+          } catch (e) {}
+        }
+
+        if (!batchOk) {
+          await translateBatchWithGoogleFallback(slice);
         }
 
         done = Math.min(cues.length, i + BATCH_SIZE);
         if (btn) {
           const pct = Math.round((done / cues.length) * 100);
-          btn.innerHTML = `<i class="fa-solid fa-language fa-spin mr-1"></i>Đang dịch ${pct}%`;
+          btn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles fa-spin mr-1"></i>${usedAI ? "AI đang dịch" : "Đang dịch"} ${pct}%`;
         }
         if (state.currentRoomId === roomId) {
           const videoEl = document.getElementById("html5-video-player");
           renderSubtitleAtTime(getEffectiveRoom(roomId), videoEl?.currentTime || 0);
         }
         if (done % 100 === 0 || done === cues.length) {
-          syncRoomSubtitlesToRTDB(roomId, cues, "Translated VI");
+          syncRoomSubtitlesToRTDB(roomId, cues, usedAI ? "AI Translated VI" : "Translated VI");
         }
-        await new Promise(r => setTimeout(r, 120));
+        await new Promise(r => setTimeout(r, usedAI ? 220 : 120));
       }
 
       if (btn) {
         btn.innerHTML = `<i class="fa-solid fa-file-arrow-up mr-1"></i>Nạp .SRT (Tự dịch VI)`;
       }
-      showToast(`✅ Đã dịch xong toàn bộ ${cues.length} câu phụ đề sang Tiếng Việt chuẩn xác!`, "success");
+      showToast(
+        usedAI
+          ? `✨ AI Gemini đã dịch mượt xong ${cues.length} câu phụ đề sang Tiếng Việt!`
+          : `✅ Đã dịch xong toàn bộ ${cues.length} câu phụ đề sang Tiếng Việt!`,
+        "success"
+      );
     }
 
     function triggerSubtitleFileInput() {
