@@ -4722,6 +4722,7 @@
       if (room && videoEl && !videoEl.classList.contains("hidden")) {
         renderSubtitleAtTime(room, videoEl.currentTime || 0);
       }
+      if (isIAmHost() || !currentRoomHost) broadcastRoomVideoSync("effects");
       showToast(`Đã lưu đồng bộ phụ đề (${state.subtitleOffsetSec > 0 ? "+" : ""}${state.subtitleOffsetSec.toFixed(1)}s) cho mọi người`, "info");
     }
 
@@ -4734,6 +4735,7 @@
       if (room && videoEl && !videoEl.classList.contains("hidden")) {
         renderSubtitleAtTime(room, videoEl.currentTime || 0);
       }
+      if (isIAmHost() || !currentRoomHost) broadcastRoomVideoSync("effects");
       showToast("Đã đặt lại & lưu đồng bộ phụ đề về 0.0s", "info");
     }
 
@@ -4794,29 +4796,35 @@
       applySubtitlePositionAndSize();
     }
 
-    function cycleSubtitleMode() {
-      const modes = ["vi", "en", "off"];
+    function applySubtitleMode(mode, silent = false) {
       const labels = {
         vi: `<i class="fa-solid fa-closed-captioning mr-1"></i>Phụ đề: Tiếng Việt`,
         en: `<i class="fa-solid fa-closed-captioning mr-1"></i>Phụ đề: Tiếng Anh`,
         off: `<i class="fa-regular fa-closed-captioning mr-1 text-slate-400"></i>Phụ đề: TẮT`
       };
-      const nextIdx = (modes.indexOf(state.subtitleMode) + 1) % modes.length;
-      state.subtitleMode = modes[nextIdx];
-
+      state.subtitleMode = labels[mode] ? mode : "vi";
       const btn = document.getElementById("btn-cc-mode");
       if (btn) btn.innerHTML = labels[state.subtitleMode];
 
       if (state.currentRoomId) {
         const room = getEffectiveRoom(state.currentRoomId);
         const videoEl = document.getElementById("html5-video-player");
-        const curSec = (!videoEl.classList.contains("hidden") && videoEl.currentTime)
+        const curSec = (videoEl && !videoEl.classList.contains("hidden") && videoEl.currentTime)
           ? videoEl.currentTime
           : ((Date.now() / 1000) % (room.durationSec || 600));
         renderSubtitleAtTime(room, curSec);
       }
-      const modeName = state.subtitleMode === "vi" ? "Tiếng Việt" : state.subtitleMode === "en" ? "Tiếng Anh" : "Tắt";
-      showToast(`Đã chuyển chế độ phụ đề: ${modeName}`, "info");
+      if (!silent) {
+        const modeName = state.subtitleMode === "vi" ? "Tiếng Việt" : state.subtitleMode === "en" ? "Tiếng Anh" : "Tắt";
+        showToast(`Đã chuyển chế độ phụ đề: ${modeName}`, "info");
+      }
+    }
+
+    function cycleSubtitleMode() {
+      const modes = ["vi", "en", "off"];
+      const nextIdx = (modes.indexOf(state.subtitleMode) + 1) % modes.length;
+      applySubtitleMode(modes[nextIdx], false);
+      if (isIAmHost() || !currentRoomHost) broadcastRoomVideoSync("effects");
     }
 
     async function generateAISubtitlesNow() {
@@ -6012,8 +6020,8 @@
       applySubtitlePositionAndSize();
     }
 
-    function toggleDimLights() {
-      state.dimmed = !state.dimmed;
+    function applyDimLightsState(dimmed, silent = false) {
+      state.dimmed = Boolean(dimmed);
       document.body.classList.toggle("theater-dimmed", state.dimmed);
       const btn = document.getElementById("btn-dim-lights");
       if (btn) {
@@ -6024,13 +6032,20 @@
           ? "px-2.5 py-1.5 rounded-xl bg-amber-500/25 hover:bg-amber-500/40 text-amber-200 text-xs font-extrabold flex items-center gap-1.5 border border-amber-400/60 shadow-[0_0_16px_rgba(245,158,11,0.35)] transition cursor-pointer"
           : "px-2.5 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 border border-white/10 transition cursor-pointer";
       }
-      playSeatClickSFX();
-      showToast(
-        state.dimmed
-          ? "🌑 Đã tắt toàn bộ đèn trần rạp! Chỉ còn ánh sáng màn hình cong IMAX & đèn LED cầu thang."
-          : "💡 Đã bật lại hệ thống đèn Halogen kháng phòng!",
-        "info"
-      );
+      if (!silent) {
+        playSeatClickSFX();
+        showToast(
+          state.dimmed
+            ? "🌑 Đã tắt toàn bộ đèn trần rạp! Chỉ còn ánh sáng màn hình cong IMAX & đèn LED cầu thang."
+            : "💡 Đã bật lại hệ thống đèn Halogen kháng phòng!",
+          "info"
+        );
+      }
+    }
+
+    function toggleDimLights() {
+      applyDimLightsState(!state.dimmed, false);
+      if (isIAmHost() || !currentRoomHost) broadcastRoomVideoSync("effects");
     }
 
     // =========================================================
@@ -7019,8 +7034,8 @@
       }, 1600);
     }
 
-    function toggleAmbilight() {
-      state.ambilightEnabled = !state.ambilightEnabled;
+    function applyAmbilightState(enabled, silent = false) {
+      state.ambilightEnabled = Boolean(enabled);
       const btn = document.getElementById("btn-ambilight");
       if (btn) {
         btn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>Ambilight: ${state.ambilightEnabled ? 'BẬT' : 'TẮT'}</span>`;
@@ -7028,7 +7043,14 @@
           ? "px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-300 text-xs font-extrabold flex items-center gap-1.5 transition cursor-pointer"
           : "px-3 py-1.5 rounded-xl bg-stone-800 border border-white/10 text-slate-400 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer";
       }
-      showToast(state.ambilightEnabled ? "Đã bật đèn Ambilight đồng bộ màn hình!" : "Đã tắt hiệu ứng đèn Ambilight.", "info");
+      if (!silent) {
+        showToast(state.ambilightEnabled ? "Đã bật đèn Ambilight đồng bộ màn hình!" : "Đã tắt hiệu ứng đèn Ambilight.", "info");
+      }
+    }
+
+    function toggleAmbilight() {
+      applyAmbilightState(!state.ambilightEnabled, false);
+      if (isIAmHost() || !currentRoomHost) broadcastRoomVideoSync("effects");
     }
 
     // Hiệu ứng âm thanh rạp thật bằng Web Audio API (Không cần file âm thanh ngoài)
@@ -7560,6 +7582,10 @@
         poster: room.poster || "",
         isPlaying,
         currentTime,
+        dimmed: Boolean(state.dimmed),
+        ambilightEnabled: Boolean(state.ambilightEnabled),
+        subtitleOffsetSec: Number(state.subtitleOffsetSec) || 0,
+        subtitleMode: state.subtitleMode || "vi",
         action,
         uid: state.uid,
         userName: state.userName,
@@ -7651,10 +7677,30 @@
           }
         }
 
+        if (typeof data.dimmed === "boolean" && data.dimmed !== state.dimmed) {
+          applyDimLightsState(data.dimmed, true);
+        }
+        if (typeof data.ambilightEnabled === "boolean" && data.ambilightEnabled !== state.ambilightEnabled) {
+          applyAmbilightState(data.ambilightEnabled, true);
+        }
+        if (typeof data.subtitleMode === "string" && data.subtitleMode !== state.subtitleMode) {
+          applySubtitleMode(data.subtitleMode, true);
+        }
+        if (typeof data.subtitleOffsetSec === "number" && data.subtitleOffsetSec !== state.subtitleOffsetSec) {
+          state.subtitleOffsetSec = data.subtitleOffsetSec;
+          updateSubtitleOffsetUI();
+          const roomObj = getEffectiveRoom(roomId);
+          const vEl = document.getElementById("html5-video-player");
+          if (roomObj && vEl && !vEl.classList.contains("hidden")) {
+            renderSubtitleAtTime(roomObj, vEl.currentTime || 0);
+          }
+        }
+
         if (!forceResync && data.uid !== state.uid && Date.now() - (data.updatedAt || 0) < 8000) {
           if (data.action === "pause") showToast(`⏸️ ${data.userName} đã tạm dừng phim`, "info");
           else if (data.action === "play") showToast(`▶️ ${data.userName} đã tiếp tục phát phim`, "info");
           else if (data.action === "seek") showToast(`⏩ ${data.userName} vừa tua tới ${formatTime(data.currentTime || 0)}`, "info");
+          else if (data.action === "effects") showToast(`👑 Chủ Trì ${data.userName} vừa đồng bộ hiệu ứng phòng!`, "info");
         }
       } finally {
         isApplyingRemoteSync = false;
@@ -7705,7 +7751,28 @@
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
-        { urls: "stun:stun2.l.google.com:19302" }
+        { urls: "stun:stun2.l.google.com:19302" },
+        { urls: "stun:stun.relay.metered.ca:80" },
+        {
+          urls: "turn:global.relay.metered.ca:80",
+          username: "e8dd65b92f6dde54a428b67b",
+          credential: "9/Z7yS4e93sN7n/+"
+        },
+        {
+          urls: "turn:global.relay.metered.ca:80?transport=tcp",
+          username: "e8dd65b92f6dde54a428b67b",
+          credential: "9/Z7yS4e93sN7n/+"
+        },
+        {
+          urls: "turn:global.relay.metered.ca:443",
+          username: "e8dd65b92f6dde54a428b67b",
+          credential: "9/Z7yS4e93sN7n/+"
+        },
+        {
+          urls: "turns:global.relay.metered.ca:443?transport=tcp",
+          username: "e8dd65b92f6dde54a428b67b",
+          credential: "9/Z7yS4e93sN7n/+"
+        }
       ],
       iceCandidatePoolSize: 4
     };
@@ -7818,6 +7885,24 @@
             rtdbMod.ref(rtdb, `voice/${roomId}/ice/${remoteUid}/${state.uid}`),
             event.candidate.toJSON()
           ).catch(() => {});
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === "failed" && state.uid < remoteUid && pc.signalingState === "stable") {
+          try {
+            pc.restartIce();
+            pc.createOffer({ iceRestart: true }).then(offer =>
+              pc.setLocalDescription(offer).then(() =>
+                rtdbMod && rtdb && rtdbMod.set(rtdbMod.ref(rtdb, `voice/${roomId}/signals/${remoteUid}/${state.uid}`), {
+                  type: "offer",
+                  sdp: offer.sdp,
+                  from: state.uid,
+                  ts: Date.now()
+                })
+              )
+            ).catch(() => {});
+          } catch (e) {}
         }
       };
 
