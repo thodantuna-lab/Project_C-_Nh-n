@@ -34,33 +34,122 @@
         filter 0.26s ease;
       will-change: transform;
     }
-    button:not(.cinema-chair):not(.absolute):not(.fixed)::after {
+    /* Tối ưu GPU Compositor: chạy hoàn toàn bằng transform3d để không gây giật lag video */
+    @keyframes btnHologramFlow {
+      0% {
+        transform: translate3d(0%, 0, 0);
+      }
+      100% {
+        transform: translate3d(-50%, 0, 0);
+      }
+    }
+    button:not(.cinema-chair):not(.absolute):not(.fixed):not(.no-holo):not(:disabled) {
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.14), 0 0 16px rgba(232, 121, 249, 0.10);
+    }
+    button:not(.cinema-chair):not(.absolute):not(.fixed):not(.no-holo)::after {
       content: "";
       position: absolute;
-      inset: -2px;
-      background: linear-gradient(
-        118deg,
-        transparent 22%,
-        rgba(56, 189, 248, 0.26) 38%,
-        rgba(232, 121, 249, 0.28) 50%,
-        rgba(251, 191, 36, 0.24) 62%,
-        transparent 78%
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 200%;
+      background-image: linear-gradient(
+        110deg,
+        rgba(56, 189, 248, 0.04) 0%,
+        rgba(56, 189, 248, 0.18) 12%,
+        rgba(192, 132, 252, 0.20) 25%,
+        rgba(251, 191, 36, 0.16) 37%,
+        rgba(56, 189, 248, 0.04) 50%,
+        rgba(56, 189, 248, 0.18) 62%,
+        rgba(192, 132, 252, 0.20) 75%,
+        rgba(251, 191, 36, 0.16) 87%,
+        rgba(56, 189, 248, 0.04) 100%
       );
-      transform: translateX(-135%) skewX(-18deg);
-      transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+      animation: btnHologramFlow 4.2s linear infinite;
+      will-change: transform;
       pointer-events: none;
       z-index: 1;
     }
-    button:not(.cinema-chair):not(.absolute):not(.fixed):hover:not(:disabled) {
+    button:not(.cinema-chair):not(.absolute):not(.fixed):disabled::after {
+      animation: none;
+      opacity: 0;
+    }
+    button:not(.cinema-chair):not(.absolute):not(.fixed):not(.no-holo):hover:not(:disabled) {
       transform: translateY(-2px) scale(1.025);
       box-shadow:
-        0 6px 20px rgba(56, 189, 248, 0.24),
-        0 0 14px rgba(232, 121, 249, 0.2),
-        inset 0 0 10px rgba(255, 255, 255, 0.12);
+        0 6px 20px rgba(56, 189, 248, 0.28),
+        0 0 16px rgba(232, 121, 249, 0.24),
+        inset 0 0 10px rgba(255, 255, 255, 0.14);
       filter: brightness(1.08);
     }
-    button:not(.cinema-chair):not(.absolute):not(.fixed):hover:not(:disabled)::after {
-      transform: translateX(135%) skewX(-18deg);
+    button:not(.cinema-chair):not(.absolute):not(.fixed):not(.no-holo):hover:not(:disabled)::after {
+      animation-duration: 2.2s;
+    }
+
+    /* Tách tầng GPU riêng cho màn hình video 1080p để phát mượt tối đa */
+    #cinema-screen,
+    #html5-video-player {
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+
+    /* Băng chuyền comment gợi ý chạy liên tục không thanh cuộn */
+    @keyframes quickCommentMarquee {
+      0% {
+        transform: translate3d(0, 0, 0);
+      }
+      100% {
+        transform: translate3d(-50%, 0, 0);
+      }
+    }
+    .quick-comment-marquee {
+      overflow: hidden;
+      -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
+      mask-image: linear-gradient(90deg, transparent 0%, #000 5%, #000 95%, transparent 100%);
+    }
+    .quick-comment-track {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: max-content;
+      animation: quickCommentMarquee 18s linear infinite;
+      will-change: transform;
+    }
+    .quick-comment-marquee:hover .quick-comment-track {
+      animation-play-state: paused;
+    }
+
+    /* Danh sách phim cột trái: ẩn thanh cuộn, tràn viền & hiệu ứng chuyển động mượt khi cuộn */
+    #theater-left-movie-list {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      scroll-behavior: smooth;
+      -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 4%, #000 94%, transparent 100%);
+      mask-image: linear-gradient(180deg, transparent 0%, #000 4%, #000 94%, transparent 100%);
+      perspective: 700px;
+    }
+    #theater-left-movie-list::-webkit-scrollbar {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+    .movie-list-card {
+      transform: translate3d(0, var(--scroll-shift, 0px), 0) rotateX(var(--scroll-tilt, 0deg)) scale(0.96);
+      opacity: 0.45;
+      transition:
+        transform 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.36s ease,
+        box-shadow 0.28s ease;
+      will-change: transform, opacity;
+    }
+    .movie-list-card.is-visible {
+      transform: translate3d(0, var(--scroll-shift, 0px), 0) rotateX(var(--scroll-tilt, 0deg)) scale(1);
+      opacity: 1;
+    }
+    .movie-list-card:hover {
+      transform: translate3d(0, -2px, 0) scale(1.02) !important;
+      box-shadow: inset 0 0 0 1.5px rgba(251, 191, 36, 0.75), 0 12px 26px rgba(0, 0, 0, 0.85);
+      z-index: 2;
     }
     button:not(.cinema-chair):not(.absolute):not(.fixed):active:not(:disabled) {
       transform: translateY(0px) scale(0.95);
@@ -147,28 +236,39 @@
       margin-right: auto;
     }
     body.theater-dimmed .ceiling-canopy {
-      background: linear-gradient(180deg, #000000 0%, #050507 100%) !important;
-      border-bottom-color: #0b0b10 !important;
+      background: linear-gradient(180deg, #000000 0%, #040406 100%) !important;
+      border-bottom-color: #09090d !important;
+      box-shadow: inset 0 -10px 25px rgba(56, 189, 248, 0.06);
     }
     body.theater-dimmed .ceiling-spot {
-      background: #141212 !important;
+      background: #161312 !important;
       box-shadow: none !important;
-      opacity: 0.15;
+      opacity: 0.12;
+    }
+    body.theater-dimmed .ceiling-cove-led {
+      opacity: 0.14;
     }
     body.theater-dimmed .wall-left,
     body.theater-dimmed .wall-right {
-      background-color: #040406 !important;
-      border-color: #0a0a0f !important;
-      filter: brightness(0.22) contrast(1.2);
+      background-color: #030305 !important;
+      border-color: #08080c !important;
+      filter: brightness(0.24) contrast(1.22);
+    }
+    body.theater-dimmed .wall-sconce-beam {
+      opacity: 0.18;
+    }
+    body.theater-dimmed .cinema-curtain-l,
+    body.theater-dimmed .cinema-curtain-r {
+      filter: brightness(0.45) contrast(1.15);
     }
     /* Biển báo lối thoát hiểm EXIT vẫn sáng xanh dịu đúng chuẩn rạp chiếu phim */
     body.theater-dimmed .exit-sign-badge {
-      opacity: 0.9 !important;
-      box-shadow: 0 0 14px 2px rgba(16, 185, 129, 0.85) !important;
+      opacity: 0.95 !important;
+      box-shadow: 0 0 16px 3px rgba(16, 185, 129, 0.9), 0 0 36px 8px rgba(16, 185, 129, 0.25) !important;
     }
     /* Luồng tia máy chiếu IMAX Laser rõ nét hơn trong bóng tối */
     body.theater-dimmed .imax-projector-beam {
-      opacity: 0.95;
+      opacity: 0.98;
     }
     /* Hàng ghế chìm vào bóng tối rạp, chỉ hắt nhẹ ánh sáng màn hình lên viền đỉnh tựa đầu */
     body.theater-dimmed .seat-row-tier {
@@ -196,33 +296,66 @@
     .auditorium-wrapper {
       position: relative;
       background:
-        radial-gradient(ellipse at 50% 14%, rgba(254, 243, 199, 0.16) 0%, rgba(26, 21, 20, 0.96) 48%, #070608 100%);
-      border: 1px solid #3a302c;
-      box-shadow: inset 0 20px 85px rgba(0, 0, 0, 0.95), 0 20px 50px rgba(0, 0, 0, 0.85);
+        radial-gradient(ellipse at 50% 18%, rgba(56, 189, 248, 0.08) 0%, transparent 45%),
+        radial-gradient(ellipse at 50% 10%, rgba(254, 243, 199, 0.14) 0%, rgba(20, 15, 16, 0.97) 50%, #050507 100%);
+      border: 1px solid #382e2a;
+      box-shadow:
+        inset 0 28px 95px rgba(0, 0, 0, 0.96),
+        inset 0 -30px 70px rgba(0, 0, 0, 0.92),
+        0 24px 60px rgba(0, 0, 0, 0.88);
       overflow: hidden;
       transition: background 0.65s ease, border-color 0.65s ease, box-shadow 0.65s ease;
     }
 
-    /* Trần rạp nhìn từ hàng F thu nhỏ về phía màn hình */
+    /* Trần rạp dạng vòm tiêu âm nhiều lớp nhìn từ hàng F thu nhỏ về phía màn hình */
     .ceiling-canopy {
       position: relative;
-      width: 86%;
-      height: 30px;
+      width: 88%;
+      height: 36px;
       margin: 0 auto;
-      background: linear-gradient(180deg, #0b090a 0%, #1c1615 100%);
-      clip-path: polygon(0% 0%, 100% 0%, 93% 100%, 7% 100%);
+      background:
+        repeating-linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.025) 0px,
+          rgba(255, 255, 255, 0.025) 2px,
+          transparent 2px,
+          transparent 9px
+        ),
+        linear-gradient(180deg, #070608 0%, #171314 68%, #221b1a 100%);
+      clip-path: polygon(0% 0%, 100% 0%, 92% 100%, 8% 100%);
       border-bottom: 2px solid #352c28;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.9);
       z-index: 5;
-      transition: background 0.65s ease, border-color 0.65s ease;
+      transition: background 0.65s ease, border-color 0.65s ease, box-shadow 0.65s ease;
+    }
+
+    .ceiling-cove-led {
+      position: absolute;
+      bottom: 1px;
+      left: 10%;
+      right: 10%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent 0%, rgba(251, 191, 36, 0.45) 18%, rgba(56, 189, 248, 0.35) 50%, rgba(251, 191, 36, 0.45) 82%, transparent 100%);
+      filter: blur(0.6px);
+      pointer-events: none;
+      transition: opacity 0.65s ease;
     }
 
     .ceiling-spot {
-      width: 20px;
+      position: relative;
+      width: 22px;
       height: 6px;
       border-radius: 999px;
-      background: #fffbeb;
-      box-shadow: 0 0 18px 6px rgba(254, 243, 199, 0.85), 0 18px 45px 16px rgba(251, 191, 36, 0.25);
+      background: radial-gradient(circle, #ffffff 0%, #fef3c7 65%, #f59e0b 100%);
+      box-shadow:
+        0 0 14px 4px rgba(254, 243, 199, 0.85),
+        0 16px 42px 14px rgba(251, 191, 36, 0.22);
       transition: background 0.65s ease, box-shadow 0.65s ease, opacity 0.65s ease;
+    }
+
+    @keyframes projectorHaze {
+      0%, 100% { opacity: 0.44; }
+      50% { opacity: 0.58; }
     }
 
     /* Luồng sáng máy chiếu IMAX 70mm Dual-Laser từ buồng chiếu cuối rạp */
@@ -231,43 +364,298 @@
       top: 0;
       left: 50%;
       transform: translateX(-50%);
-      width: 82%;
-      height: 155px;
+      width: 84%;
+      height: 175px;
       pointer-events: none;
       z-index: 6;
-      opacity: 0.45;
+      opacity: 0.48;
       background:
-        conic-gradient(from 158deg at 50% -18%, transparent 0deg, rgba(186, 230, 253, 0.09) 14deg, rgba(254, 243, 199, 0.14) 22deg, rgba(186, 230, 253, 0.09) 30deg, transparent 44deg);
+        conic-gradient(from 156deg at 50% -20%, transparent 0deg, rgba(186, 230, 253, 0.08) 12deg, rgba(254, 243, 199, 0.14) 22deg, rgba(186, 230, 253, 0.10) 31deg, transparent 46deg);
       filter: blur(8px);
+      animation: projectorHaze 5.5s ease-in-out infinite;
       transition: opacity 0.65s ease;
     }
 
-    /* Tường tiêu âm hai bên rạp giống hình ảnh Lotte / IMAX */
+    /* Tường tiêu âm 3D hai bên rạp + đèn hắt tường (Wall Sconce) chuẩn rạp Lotte / IMAX */
     .wall-left,
     .wall-right {
       position: absolute;
-      top: 28px;
-      bottom: 16%;
-      width: 68px;
+      top: 24px;
+      bottom: 8%;
+      width: 78px;
       pointer-events: none;
       z-index: 4;
-      background-color: #1f1a18;
+      background-color: #161212;
       background-image:
-        linear-gradient(rgba(0, 0, 0, 0.65) 2px, transparent 2px),
-        linear-gradient(90deg, rgba(0, 0, 0, 0.65) 2px, transparent 2px);
-      background-size: 16px 22px;
-      border-bottom: 70px solid #332926;
+        repeating-linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0.03) 0px,
+          rgba(255, 255, 255, 0.03) 1px,
+          rgba(0, 0, 0, 0.55) 1px,
+          rgba(0, 0, 0, 0.55) 7px
+        ),
+        linear-gradient(rgba(0, 0, 0, 0.72) 2px, transparent 2px);
+      background-size: 7px 100%, 100% 30px;
+      border-bottom: 66px solid #231b19;
+      box-shadow: inset 0 0 28px rgba(0, 0, 0, 0.85);
       transition: background-color 0.65s ease, border-color 0.65s ease, filter 0.65s ease;
     }
     .wall-left {
       left: 0;
-      clip-path: polygon(0% 0%, 100% 8%, 100% 90%, 0% 100%);
-      border-right: 2px solid #3f3530;
+      clip-path: polygon(0% 0%, 100% 9%, 100% 89%, 0% 100%);
+      border-right: 2px solid #352b27;
     }
     .wall-right {
       right: 0;
-      clip-path: polygon(0% 8%, 100% 0%, 100% 100%, 0% 90%);
-      border-left: 2px solid #3f3530;
+      clip-path: polygon(0% 9%, 100% 0%, 100% 100%, 0% 89%);
+      border-left: 2px solid #352b27;
+    }
+
+    .wall-sconce {
+      position: relative;
+      width: 10px;
+      height: 22px;
+      margin: 22px auto 0;
+      border-radius: 3px;
+      background: linear-gradient(180deg, #451a03 0%, #92400e 50%, #451a03 100%);
+      border: 1px solid rgba(251, 191, 36, 0.45);
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+    }
+    .wall-sconce-beam {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 48px;
+      height: 110px;
+      background: radial-gradient(ellipse at 50% 50%, rgba(251, 191, 36, 0.34) 0%, rgba(217, 119, 6, 0.14) 42%, transparent 74%);
+      pointer-events: none;
+      transition: opacity 0.65s ease;
+    }
+
+    /* Rèm nhung xếp nếp 2 bên màn hình IMAX (Velvet Proscenium Curtains) */
+    .cinema-curtain-l,
+    .cinema-curtain-r {
+      position: absolute;
+      top: 10px;
+      bottom: 12px;
+      width: 24px;
+      pointer-events: none;
+      z-index: 9;
+      background:
+        repeating-linear-gradient(
+          90deg,
+          #190509 0px,
+          #3b0a16 4px,
+          #120307 8px,
+          #2a0710 11px
+        );
+      box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.92), 0 8px 20px rgba(0, 0, 0, 0.85);
+      transition: filter 0.65s ease;
+    }
+    .cinema-curtain-l {
+      left: 6%;
+      border-radius: 8px 0 0 8px;
+      border-right: 1px solid rgba(251, 191, 36, 0.16);
+    }
+    .cinema-curtain-r {
+      right: 6%;
+      border-radius: 0 8px 8px 0;
+      border-left: 1px solid rgba(251, 191, 36, 0.16);
+    }
+
+    /* ======================================================= */
+    /* MÀN NHUNG VẬT LÝ SIÊU THỰC KHI CHỦ TRÌ TẠM DỪNG PHIM    */
+    /* ======================================================= */
+    #screen-velvet-curtain {
+      position: absolute;
+      inset: 0;
+      z-index: 25;
+      pointer-events: none;
+      overflow: hidden;
+      perspective: 900px;
+    }
+
+    /* Ánh đèn sân khấu rọi nhẹ lên bề mặt nhung khi màn đóng */
+    .curtain-stage-glow {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+      opacity: 0;
+      background:
+        radial-gradient(ellipse 68% 58% at 50% 42%, rgba(254, 215, 170, 0.18) 0%, rgba(180, 83, 9, 0.08) 45%, rgba(0, 0, 0, 0.72) 100%),
+        radial-gradient(ellipse 90% 25% at 50% 100%, rgba(251, 191, 36, 0.14) 0%, transparent 70%);
+      transition: opacity 0.9s ease 0.2s;
+    }
+    #screen-velvet-curtain.curtain-closed .curtain-stage-glow {
+      opacity: 1;
+    }
+
+    /* Vật lý kéo rèm: mép trên chạy trước, gấu rèm dưới trễ theo quán tính và dao động tắt dần khi chạm nhau */
+    @keyframes curtainCloseLeft {
+      0% {
+        transform: translateX(-102%) scaleX(0.62) skewX(0deg);
+      }
+      55% {
+        transform: translateX(-8%) scaleX(1.03) skewX(6.5deg);
+      }
+      76% {
+        transform: translateX(1.5%) scaleX(0.985) skewX(-2.6deg);
+      }
+      89% {
+        transform: translateX(-0.4%) scaleX(1.005) skewX(1deg);
+      }
+      100% {
+        transform: translateX(0%) scaleX(1) skewX(0deg);
+      }
+    }
+    @keyframes curtainCloseRight {
+      0% {
+        transform: translateX(102%) scaleX(0.62) skewX(0deg);
+      }
+      55% {
+        transform: translateX(8%) scaleX(1.03) skewX(-6.5deg);
+      }
+      76% {
+        transform: translateX(-1.5%) scaleX(0.985) skewX(2.6deg);
+      }
+      89% {
+        transform: translateX(0.4%) scaleX(1.005) skewX(-1deg);
+      }
+      100% {
+        transform: translateX(0%) scaleX(1) skewX(0deg);
+      }
+    }
+    @keyframes curtainVelvetBreathe {
+      0%, 100% {
+        filter: brightness(1) contrast(1.04);
+        background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%;
+      }
+      50% {
+        filter: brightness(1.04) contrast(1.06);
+        background-position: 2px 0%, -2px 0%, 0% 0%, 0% 0%;
+      }
+    }
+
+    .curtain-half-l,
+    .curtain-half-r {
+      position: absolute;
+      top: -4%;
+      bottom: -4%;
+      width: 53%;
+      background-color: #210309;
+      /* Nhiều lớp nếp gấp bất đối xứng mô phỏng độ rủ tự nhiên của vải nhung nặng */
+      background-image:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.08) 14%, transparent 32%, rgba(0, 0, 0, 0.25) 82%, rgba(0, 0, 0, 0.78) 100%),
+        repeating-linear-gradient(
+          90deg,
+          rgba(12, 1, 4, 0.72) 0px,
+          rgba(95, 13, 30, 0.55) 9px,
+          rgba(148, 24, 48, 0.38) 15px,
+          rgba(52, 6, 16, 0.75) 23px,
+          rgba(10, 1, 3, 0.85) 31px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          transparent 0px,
+          rgba(255, 190, 190, 0.06) 11px,
+          rgba(0, 0, 0, 0.42) 27px,
+          transparent 47px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          #160206 0px,
+          #4e0819 17px,
+          #751128 28px,
+          #2c040d 41px,
+          #110104 53px
+        );
+      will-change: transform;
+      transition: transform 1.05s cubic-bezier(0.32, 0.04, 0.22, 1);
+    }
+    .curtain-half-l {
+      left: -1%;
+      transform-origin: top left;
+      transform: translateX(-102%) scaleX(0.62) skewX(-4deg);
+      box-shadow: 16px 0 34px rgba(0, 0, 0, 0.88), inset -12px 0 26px rgba(0, 0, 0, 0.75);
+      z-index: 2;
+    }
+    .curtain-half-r {
+      right: -1%;
+      transform-origin: top right;
+      transform: translateX(102%) scaleX(0.62) skewX(4deg);
+      box-shadow: -16px 0 34px rgba(0, 0, 0, 0.88), inset 12px 0 26px rgba(0, 0, 0, 0.75);
+      z-index: 1;
+    }
+
+    /* Các nếp nhúm ở đỉnh rèm nơi móc vào thanh ray */
+    .curtain-half-l::before,
+    .curtain-half-r::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 22%;
+      background: repeating-linear-gradient(
+        90deg,
+        rgba(0, 0, 0, 0.65) 0px,
+        transparent 10px,
+        rgba(255, 220, 200, 0.07) 18px,
+        rgba(0, 0, 0, 0.55) 29px
+      );
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 1) 0%, transparent 100%);
+      -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 1) 0%, transparent 100%);
+      pointer-events: none;
+    }
+
+    /* Diềm rèm nhung rủ hình vòng cung (Swag Valance) phía trên thanh ray */
+    .curtain-valance {
+      position: absolute;
+      top: -2px;
+      left: -1%;
+      right: -1%;
+      height: 32px;
+      z-index: 5;
+      pointer-events: none;
+      transform: translateY(-110%);
+      transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+      filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.9));
+    }
+
+    .curtain-pause-badge {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      opacity: 0;
+      transform: translateY(8px) scale(0.95);
+      transition: opacity 0.55s ease 0.48s, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.48s;
+      z-index: 6;
+    }
+
+    #screen-velvet-curtain.curtain-closed .curtain-half-l {
+      transform: translateX(0%) scaleX(1) skewX(0deg);
+      animation:
+        curtainCloseLeft 1.25s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+        curtainVelvetBreathe 6s ease-in-out 1.3s infinite;
+    }
+    #screen-velvet-curtain.curtain-closed .curtain-half-r {
+      transform: translateX(0%) scaleX(1) skewX(0deg);
+      animation:
+        curtainCloseRight 1.25s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+        curtainVelvetBreathe 6s ease-in-out 1.3s infinite;
+    }
+    #screen-velvet-curtain.curtain-closed .curtain-valance {
+      transform: translateY(0%);
+    }
+    #screen-velvet-curtain.curtain-closed .curtain-pause-badge {
+      opacity: 1;
+      transform: translateY(0px) scale(1);
     }
 
     /* ======================================================= */
@@ -361,20 +749,50 @@
         radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.35) 100%);
     }
 
-    /* Sàn sân khấu uốn cong đồng bộ theo độ cong màn hình IMAX */
+    /* Sàn sân khấu uốn cong phản chiếu ánh sáng màn hình IMAX */
     .stage-floor {
       position: relative;
-      width: 88%;
-      height: 40px;
+      width: 90%;
+      height: 44px;
       margin: -4px auto 0;
       border-radius: 50% 50% 12px 12px / 22px 22px 6px 6px;
       clip-path: polygon(4% 0%, 96% 0%, 100% 100%, 0% 100%);
       background:
-        radial-gradient(ellipse at 50% 0%, rgba(56, 189, 248, 0.22) 0%, rgba(251, 191, 36, 0.14) 38%, transparent 75%),
-        linear-gradient(180deg, #161821 0%, #09090d 100%);
-      border-top: 2px solid rgba(56, 189, 248, 0.45);
-      border-bottom: 2px solid #1e1b20;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.95);
+        radial-gradient(ellipse at 50% 0%, rgba(186, 230, 253, 0.28) 0%, rgba(56, 189, 248, 0.14) 32%, rgba(251, 191, 36, 0.08) 54%, transparent 80%),
+        linear-gradient(180deg, #1b1d27 0%, #0b0b10 55%, #050507 100%);
+      border-top: 2px solid rgba(186, 230, 253, 0.45);
+      border-bottom: 2px solid #231d21;
+      box-shadow:
+        0 14px 32px rgba(0, 0, 0, 0.96),
+        inset 0 8px 18px rgba(186, 230, 253, 0.12);
+    }
+    .stage-floor::after {
+      content: "";
+      position: absolute;
+      bottom: 2px;
+      left: 8%;
+      right: 8%;
+      height: 1.5px;
+      background: linear-gradient(90deg, transparent 0%, rgba(245, 158, 11, 0.55) 20%, rgba(251, 191, 36, 0.25) 50%, rgba(245, 158, 11, 0.55) 80%, transparent 100%);
+      pointer-events: none;
+    }
+
+    /* Thảm sàn rạp phim hoa văn tối + đường dẫn lối đi 2 bên */
+    #seating-map {
+      position: relative;
+      padding: 6px 8px 10px;
+      border-radius: 18px;
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(56, 189, 248, 0.05) 0%, transparent 60%),
+        repeating-linear-gradient(
+          45deg,
+          rgba(255, 255, 255, 0.012) 0px,
+          rgba(255, 255, 255, 0.012) 2px,
+          transparent 2px,
+          transparent 12px
+        ),
+        linear-gradient(180deg, rgba(10, 9, 12, 0.85) 0%, rgba(6, 5, 8, 0.96) 100%);
+      box-shadow: inset 0 12px 30px rgba(0, 0, 0, 0.85);
     }
 
     /* ======================================================= */
@@ -961,7 +1379,7 @@
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-2 sm:gap-2.5">
+      <div id="header-lobby-actions" class="flex flex-wrap items-center gap-2 sm:gap-2.5">
         <!-- Nút Đặt Vé Trực Tuyến như rạp thật -->
         <button type="button" onclick="window.appActions.openBookingModal()"
           class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white text-xs font-black shadow-lg shadow-rose-600/25 transition cursor-pointer">
@@ -981,7 +1399,7 @@
         <button type="button" onclick="window.appActions.openVideoVaultModal()"
           class="flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold shadow-lg shadow-emerald-600/25 transition cursor-pointer">
           <i class="fa-solid fa-cloud-arrow-up"></i>
-          <span class="hidden md:inline">Kho Video</span>
+          <span class="hidden md:inline">Kho Phim</span>
           <span id="vault-count-badge" class="px-1.5 py-0.5 rounded-full bg-black/40 text-[10px] font-black text-emerald-200">2</span>
         </button>
 
@@ -1325,7 +1743,7 @@
   <!-- ========================================================= -->
   <!-- VIEW 2: BÊN TRONG PHÒNG CHIẾU LOTTE CINEMA (POV HÀNG F)   -->
   <!-- ========================================================= -->
-  <section id="room-view" class="hidden flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 py-3 space-y-3">
+  <section id="room-view" class="hidden flex-1 max-w-[1620px] w-full mx-auto px-3 sm:px-4 py-3 space-y-3">
 
     <!-- THANH ĐIỀU HƯỚNG & FLOATING DROPDOWN GỌN GÀNG TRÊN CÙNG -->
     <div class="relative z-40 dimmable-ui flex flex-wrap items-center justify-between gap-2 bg-stone-900/90 backdrop-blur-md border border-white/10 rounded-2xl px-3 py-2 shadow-xl">
@@ -1399,7 +1817,7 @@
               <button type="button" onclick="window.appActions.openVideoVaultModal(); window.appActions.closeAllDropdowns();"
                 class="px-2.5 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/40 text-emerald-200 font-extrabold flex flex-col items-center gap-1 transition cursor-pointer">
                 <i class="fa-solid fa-box-archive text-emerald-400"></i>
-                <span>Kho Video</span>
+                <span>Kho Phim</span>
               </button>
               <button type="button" onclick="window.appActions.openCustomVideoModal(); window.appActions.closeAllDropdowns();"
                 class="px-2.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 border border-rose-500/35 text-rose-200 font-extrabold flex flex-col items-center gap-1 transition cursor-pointer">
@@ -1551,35 +1969,60 @@
       </div>
     </div>
 
-    <!-- Bố cục chính: Cột Trái (8/12) Không gian Rạp nhìn từ Hàng F | Cột Phải (4/12) Chọn tên, Khán giả & Chat -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+    <!-- Bố cục chính 3 cột: Trái (2/12) List Phim Đang Có | Giữa (7/12) Khán phòng | Phải (3/12) Chat & Tiện ích -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
 
-      <!-- CỘT TRÁI: KHÁN PHÒNG LOTTE CINEMA NHÌN TỪ HÀNG F GIỮA RẠP -->
-      <div class="lg:col-span-8 auditorium-wrapper rounded-3xl p-3 sm:p-5 space-y-2.5">
+      <!-- CỘT TRÁI (2/12): DANH SÁCH PHIM ĐANG CÓ (TRÀN VIỀN, ẨN THANH CUỘN) -->
+      <aside class="lg:col-span-2 order-2 lg:order-1 dimmable-ui bg-stone-950/95 border border-white/10 rounded-2xl overflow-hidden shadow-xl flex flex-col lg:h-[660px]">
+        <div class="flex items-center justify-between gap-1.5 px-3 pt-2.5 pb-2 border-b border-white/10 shrink-0 bg-stone-900/80">
+          <div class="flex items-center gap-1.5 min-w-0">
+            <i class="fa-solid fa-clapperboard text-amber-400 text-xs"></i>
+            <span class="text-xs font-black text-white truncate">Phim Đang Có</span>
+          </div>
+          <span id="theater-left-movie-count" class="px-1.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[10px] font-black">0</span>
+        </div>
+        <div id="theater-left-movie-list" class="flex-1 overflow-y-auto space-y-1 pb-3 max-h-[360px] lg:max-h-none"></div>
+      </aside>
+
+      <!-- CỘT GIỮA (7/12): KHÁN PHÒNG LOTTE CINEMA NHÌN TỪ HÀNG F GIỮA RẠP -->
+      <div class="lg:col-span-7 order-1 lg:order-2 auditorium-wrapper rounded-3xl p-3 sm:p-5 space-y-2.5">
 
         <!-- KIẾN TRÚC RẠP PHIM NHÌN TỪ HÀNG F -->
         <div class="relative z-20 pt-1 pb-1">
           <!-- Luồng tia sáng máy chiếu IMAX Dual-Laser 70mm từ buồng chiếu phía sau -->
           <div class="imax-projector-beam"></div>
 
-          <!-- Tường tiêu âm Trái + Loa + Biển EXIT + Bình chữa cháy -->
+          <!-- Tường tiêu âm Trái + Loa Surround + Đèn hắt tường + Biển EXIT + Bình chữa cháy -->
           <div class="wall-left hidden sm:block">
-            <div class="mt-8 mx-auto w-7 h-10 rounded bg-neutral-950 border border-neutral-700 shadow-lg"></div>
+            <div class="mt-6 mx-auto w-8 h-11 rounded bg-neutral-950 border border-neutral-700/80 shadow-lg flex flex-col items-center justify-between py-1">
+              <span class="w-5 h-3.5 rounded-sm bg-neutral-900 border border-neutral-800"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400/80 shadow-[0_0_6px_#34d399]"></span>
+            </div>
+            <div class="wall-sconce"><div class="wall-sconce-beam"></div></div>
             <div class="absolute bottom-3 left-2 flex flex-col items-start gap-1">
-              <span class="exit-sign-badge px-1.5 py-0.5 rounded bg-emerald-500 text-[8px] font-black text-black shadow-[0_0_10px_#10b981]">EXIT</span>
-              <div class="w-7 h-14 bg-neutral-950 border border-neutral-700 rounded-t-sm relative">
+              <span class="exit-sign-badge px-1.5 py-0.5 rounded bg-emerald-500 text-[8px] font-black text-black shadow-[0_0_12px_#10b981]">EXIT</span>
+              <div class="w-7 h-14 bg-neutral-950 border border-neutral-700 rounded-t-sm relative shadow-inner">
                 <span class="absolute -right-2.5 bottom-0.5 w-2 h-5 rounded-sm bg-red-600 border border-red-300" title="Bình chữa cháy"></span>
               </div>
             </div>
           </div>
 
-          <!-- Tường tiêu âm Phải + Loa -->
+          <!-- Tường tiêu âm Phải + Loa Surround + Đèn hắt tường -->
           <div class="wall-right hidden sm:block">
-            <div class="mt-8 mx-auto w-7 h-10 rounded bg-neutral-950 border border-neutral-700 shadow-lg"></div>
+            <div class="mt-6 mx-auto w-8 h-11 rounded bg-neutral-950 border border-neutral-700/80 shadow-lg flex flex-col items-center justify-between py-1">
+              <span class="w-5 h-3.5 rounded-sm bg-neutral-900 border border-neutral-800"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400/80 shadow-[0_0_6px_#34d399]"></span>
+            </div>
+            <div class="wall-sconce"><div class="wall-sconce-beam"></div></div>
           </div>
 
-          <!-- Trần rạp và 4 cụm đèn Spotlight rọi xuống màn hình -->
-          <div class="ceiling-canopy flex items-end justify-around px-8 pb-1">
+          <!-- Rèm nhung xếp nếp 2 bên màn hình IMAX -->
+          <div class="cinema-curtain-l hidden sm:block"></div>
+          <div class="cinema-curtain-r hidden sm:block"></div>
+
+          <!-- Trần rạp tiêu âm và 4 cụm đèn Spotlight rọi xuống màn hình -->
+          <div class="ceiling-canopy flex items-end justify-around px-8 pb-1.5">
+            <div class="ceiling-cove-led"></div>
             <div class="ceiling-spot"></div>
             <div class="ceiling-spot"></div>
             <div class="ceiling-spot"></div>
@@ -1601,6 +2044,36 @@
                 <div class="imax-curve-arch-top"></div>
                 <div class="imax-curve-arch-bottom"></div>
                 <div class="imax-screen-sheen"></div>
+
+                <!-- Màn nhung rạp hát vật lý kéo che màn hình khi chủ trì tạm dừng -->
+                <div id="screen-velvet-curtain">
+                  <div class="curtain-valance">
+                    <svg viewBox="0 0 1200 44" preserveAspectRatio="none" class="w-full h-full">
+                      <defs>
+                        <linearGradient id="valanceGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="#190207" />
+                          <stop offset="55%" stop-color="#5a0a1d" />
+                          <stop offset="100%" stop-color="#2c040d" />
+                        </linearGradient>
+                      </defs>
+                      <path d="M0,0 L1200,0 L1200,26 Q1125,44 1050,24 Q975,44 900,24 Q825,44 750,24 Q675,44 600,24 Q525,44 450,24 Q375,44 300,24 Q225,44 150,24 Q75,44 0,26 Z" fill="url(#valanceGrad)" />
+                      <path d="M0,26 Q75,44 150,24 Q225,44 300,24 Q375,44 450,24 Q525,44 600,24 Q675,44 750,24 Q825,44 900,24 Q975,44 1050,24 Q1125,44 1200,26" fill="none" stroke="rgba(251,191,36,0.45)" stroke-width="2" />
+                    </svg>
+                  </div>
+                  <div class="curtain-half-l"></div>
+                  <div class="curtain-half-r"></div>
+                  <div class="curtain-stage-glow"></div>
+                  <div class="curtain-pause-badge">
+                    <div class="px-4 py-2 rounded-2xl bg-black/75 border border-amber-400/45 backdrop-blur-md shadow-[0_12px_36px_rgba(0,0,0,0.9)] flex flex-col items-center gap-1">
+                      <span class="text-amber-300 text-xs sm:text-sm font-black tracking-[0.22em] uppercase">
+                        <i class="fa-solid fa-pause mr-1.5"></i>Tạm Dừng Chiếu
+                      </span>
+                      <span class="text-[10px] sm:text-[11px] text-amber-100/75 font-semibold">
+                        Chủ trì đang tạm dừng • Đóng màn nhung rạp
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
                 <!-- Nút thoát toàn màn hình cho iPhone / Android -->
                 <button type="button" id="btn-exit-mobile-fs" onclick="window.appActions.toggleFullscreen()"
@@ -1856,8 +2329,8 @@
         </div>
       </div>
 
-      <!-- CỘT PHẢI (4/12): BẢNG TƯƠNG TÁC GỌN GÀNG (TÊN & KHÁN GIẢ DROPDOWN + 4 TAB CHỨC NĂNG) -->
-      <div class="lg:col-span-4">
+      <!-- CỘT PHẢI (3/12): BẢNG TƯƠNG TÁC GỌN GÀNG (TÊN & KHÁN GIẢ DROPDOWN + 4 TAB CHỨC NĂNG) -->
+      <div class="lg:col-span-3 order-3">
 
         <!-- HỘP TƯƠNG TÁC ĐỒNG BỘ CHIỀU CAO VỚI KHÁN PHÒNG -->
         <div class="theater-sidebar-card relative bg-stone-900/95 border border-white/10 rounded-2xl flex flex-col h-[620px] lg:h-[660px] shadow-xl">
@@ -1975,11 +2448,17 @@
                   <button type="button" onclick="window.appActions.sendReaction('🌹')" class="flex-1 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-sm cursor-pointer" title="Tặng hoa">🌹</button>
                 </div>
 
-                <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 text-[11px]">
-                  <button type="button" onclick="window.appActions.sendQuickChat('Phim hay quá')" class="shrink-0 px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-600 to-rose-600 text-white font-extrabold cursor-pointer" title="Gửi câu chat và tự động đúc vào Thẻ Ký Ức NFT">🎴 "Phim hay quá"</button>
-                  <button type="button" onclick="window.appActions.sendQuickChat('🔥 Góc nhìn từ hàng F đẹp quá!')" class="shrink-0 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-amber-300 font-semibold cursor-pointer">🔥 Góc hàng F đẹp!</button>
-                  <button type="button" onclick="window.appActions.sendQuickChat('🍿 Mời cả phòng ăn bắp rang bơ nhé!')" class="shrink-0 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-slate-200 cursor-pointer">🍿 Mời bắp rang!</button>
-                  <button type="button" onclick="window.appActions.sendQuickChat('👏 Cảnh này đỉnh thật sự!')" class="shrink-0 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-slate-200 cursor-pointer">👏 Đỉnh thật sự!</button>
+                <div class="quick-comment-marquee text-[11px]">
+                  <div class="quick-comment-track">
+                    <button type="button" onclick="window.appActions.sendQuickChat('Phim hay quá')" class="no-holo shrink-0 px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-600 to-rose-600 text-white font-extrabold cursor-pointer" title="Gửi câu chat và tự động đúc vào Thẻ Ký Ức NFT">🎴 "Phim hay quá"</button>
+                    <button type="button" onclick="window.appActions.sendQuickChat('🔥 Góc nhìn từ hàng F đẹp quá!')" class="no-holo shrink-0 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-amber-300 font-semibold cursor-pointer">🔥 Góc hàng F đẹp!</button>
+                    <button type="button" onclick="window.appActions.sendQuickChat('🍿 Mời cả phòng ăn bắp rang bơ nhé!')" class="no-holo shrink-0 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-slate-200 cursor-pointer">🍿 Mời bắp rang!</button>
+                    <button type="button" onclick="window.appActions.sendQuickChat('👏 Cảnh này đỉnh thật sự!')" class="no-holo shrink-0 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-slate-200 cursor-pointer">👏 Đỉnh thật sự!</button>
+                    <button type="button" onclick="window.appActions.sendQuickChat('Phim hay quá')" class="no-holo shrink-0 px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-600 to-rose-600 text-white font-extrabold cursor-pointer" title="Gửi câu chat và tự động đúc vào Thẻ Ký Ức NFT">🎴 "Phim hay quá"</button>
+                    <button type="button" onclick="window.appActions.sendQuickChat('🔥 Góc nhìn từ hàng F đẹp quá!')" class="no-holo shrink-0 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-amber-300 font-semibold cursor-pointer">🔥 Góc hàng F đẹp!</button>
+                    <button type="button" onclick="window.appActions.sendQuickChat('🍿 Mời cả phòng ăn bắp rang bơ nhé!')" class="no-holo shrink-0 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-slate-200 cursor-pointer">🍿 Mời bắp rang!</button>
+                    <button type="button" onclick="window.appActions.sendQuickChat('👏 Cảnh này đỉnh thật sự!')" class="no-holo shrink-0 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-slate-200 cursor-pointer">👏 Đỉnh thật sự!</button>
+                  </div>
                 </div>
               </div>
 
@@ -2204,7 +2683,7 @@
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <h3 class="text-base sm:text-lg font-black text-white">Kho Chứa Video Riêng Của Rạp (CineVerse Vault)</h3>
+              <h3 class="text-base sm:text-lg font-black text-white">Kho Phim Riêng Của Rạp (CineVerse Vault)</h3>
               <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[10px] font-black uppercase">Lưu trữ vĩnh viễn trên trình duyệt</span>
             </div>
             <p class="text-xs text-slate-400">Tải lên nhiều file video (.mp4, .webm, .mov) từ máy tính hoặc lưu link YouTube để phát vào bất kỳ phòng chiếu nào</p>
@@ -2256,7 +2735,7 @@
             </div>
             <button type="submit"
               class="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow transition cursor-pointer">
-              <i class="fa-solid fa-plus"></i> Thêm Vào Kho Video
+              <i class="fa-solid fa-plus"></i> Thêm Vào Kho Phim
             </button>
           </form>
         </div>
@@ -2266,7 +2745,7 @@
           <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/10">
             <div class="flex items-center gap-2">
               <h4 class="text-xs sm:text-sm font-black uppercase tracking-wider text-white">
-                <i class="fa-solid fa-photo-film text-amber-400 mr-1.5"></i>Danh Sách Video Trong Kho (<span id="vault-total-label">0</span>)
+                <i class="fa-solid fa-photo-film text-amber-400 mr-1.5"></i>Danh Sách Phim Trong Kho (<span id="vault-total-label">0</span>)
               </h4>
             </div>
 
@@ -2710,41 +3189,30 @@
       return `0x${hex1}${hex2}`;
     }
 
-    function loadSavedCapsules(defaultUserName) {
-      try {
-        const raw = localStorage.getItem("cineverse_memory_capsules");
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch (e) {}
-      const seedName = defaultUserName || "Khán giả VIP";
-      const seedHash = generateCapsuleSecurityHash(`${seedName}-F4-Phim hay quá-room-2`);
-      return [
-        {
-          id: "capsule_genesis_f4",
-          roomId: "room-2",
-          roomNumber: "Phòng 02",
-          movieTitle: "Hà Anh Tuấn - Tháng Tư Là Lời Nói Dối Của Em (Official MV)",
-          poster: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1e4?auto=format&fit=crop&w=1200&q=85",
-          userName: seedName,
-          seatId: "F4",
-          seatTier: "Sweetbox Đôi • Hàng F",
-          chatQuote: "Phim hay quá",
-          songPlaying: "Hà Anh Tuấn - Tháng Tư Là Lời Nói Dối Của Em • \"Tháng tư có em ở đây nhìn tôi mỉm cười...\"",
-          showtime: "19:30 • IMAX Laser 70mm",
-          snack: "🍿🥤",
-          securityCode: `NFT-CV26-F4-${seedHash.slice(2, 8)}`,
-          hashFingerprint: seedHash,
-          createdAt: Date.now() - 180000,
-          timeLabel: "19:30 • Hôm nay"
-        }
-      ];
+    function getCapsuleStorageKey(userName) {
+      const rawName = (userName || (typeof state !== "undefined" ? state.userName : "") || "").trim().toLowerCase();
+      const safeKey = rawName && !/^khách(\s+\d+)?$/i.test(rawName)
+        ? rawName.replace(/[^a-z0-9\u00C0-\u024F\u1E00-\u1EFF]+/gi, "_")
+        : (typeof state !== "undefined" && state.uid ? state.uid : "guest");
+      return `cineverse_memory_capsules_v2_${safeKey}`;
     }
 
-    function saveStoredCapsules(list) {
+    function loadSavedCapsules(defaultUserName) {
       try {
-        localStorage.setItem("cineverse_memory_capsules", JSON.stringify(list.slice(0, 30)));
+        const key = getCapsuleStorageKey(defaultUserName);
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch (e) {}
+      return [];
+    }
+
+    function saveStoredCapsules(list, userName) {
+      try {
+        const key = getCapsuleStorageKey(userName);
+        localStorage.setItem(key, JSON.stringify((list || []).slice(0, 30)));
       } catch (e) {}
     }
 
@@ -3549,6 +4017,7 @@
 
       document.getElementById("lobby-view").classList.add("hidden");
       document.getElementById("room-view").classList.remove("hidden");
+      document.getElementById("header-lobby-actions")?.classList.add("hidden");
 
       // Nếu khán giả chưa chọn ghế trong phòng này, tự động xếp ngồi ghế F4 (hoặc F5) đúng góc nhìn giữa Hàng F
       if (!getMySeatInRoom(roomId)) {
@@ -3571,6 +4040,7 @@
       subscribeRoomChat(roomId);
       subscribeRoomSync(roomId);
       subscribeRoomVoice(roomId);
+      renderTheaterLeftMovieList();
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
@@ -3613,6 +4083,7 @@
       state.currentRoomId = null;
       document.getElementById("room-view").classList.add("hidden");
       document.getElementById("lobby-view").classList.remove("hidden");
+      document.getElementById("header-lobby-actions")?.classList.remove("hidden");
       renderHeroBillboard();
       renderLobby();
     }
@@ -4389,9 +4860,16 @@
       }
     }
 
+    function setScreenCurtainClosed(closed) {
+      const curtain = document.getElementById("screen-velvet-curtain");
+      if (!curtain) return;
+      curtain.classList.toggle("curtain-closed", Boolean(closed));
+    }
+
     function resetPlayerControlButtons() {
       state.ytPaused = false;
       state.ytMuted = false;
+      setScreenCurtainClosed(false);
       const playBtn = document.getElementById("btn-play-pause");
       const muteBtn = document.getElementById("btn-mute");
       if (playBtn) playBtn.innerHTML = `<i class="fa-solid fa-pause"></i>`;
@@ -4529,6 +5007,7 @@
             ? `<i class="fa-solid fa-play"></i>`
             : `<i class="fa-solid fa-pause"></i>`;
         }
+        setScreenCurtainClosed(state.ytPaused);
         broadcastRoomVideoSync(state.ytPaused ? "pause" : "play");
         return;
       }
@@ -4537,10 +5016,12 @@
       if (videoEl.paused) {
         videoEl.play().catch(() => {});
         if (btn) btn.innerHTML = `<i class="fa-solid fa-pause"></i>`;
+        setScreenCurtainClosed(false);
         broadcastRoomVideoSync("play");
       } else {
         videoEl.pause();
         if (btn) btn.innerHTML = `<i class="fa-solid fa-play"></i>`;
+        setScreenCurtainClosed(true);
         broadcastRoomVideoSync("pause");
       }
     }
@@ -4779,7 +5260,7 @@
       const room = getEffectiveRoom(state.currentRoomId);
       updateRoomHeaderUI();
       setupRoomVideoPlayer(room);
-      showToast(`🎬 Đang chiếu file "${cleanName}" & đã tự lưu vào Kho Video Riêng!`, "success");
+      showToast(`🎬 Đang chiếu file "${cleanName}" & đã tự lưu vào Kho Phim Riêng!`, "success");
     }
 
     // =========================================================
@@ -4924,7 +5405,7 @@
       renderVideoVaultGrid();
 
       if (notifyToast) {
-        showToast(`✅ Đã tải "${cleanTitle}" (${sizeMB}) vào Kho Video Riêng!`, "success");
+        showToast(`✅ Đã tải "${cleanTitle}" (${sizeMB}) vào Kho Phim Riêng!`, "success");
       }
       return item;
     }
@@ -5044,7 +5525,7 @@
       if (urlInput) urlInput.value = "";
       updateVaultBadgeCount();
       renderVideoVaultGrid();
-      showToast(`Đã lưu "${finalTitle}" vào Kho Video!`, "success");
+      showToast(`Đã lưu "${finalTitle}" vào Kho Phim!`, "success");
     }
 
     function playVaultItemInRoom(vaultId, forceRoomId = null) {
@@ -5052,8 +5533,11 @@
       if (!item) return;
 
       const selectVal = document.getElementById("vault-target-room")?.value || "current";
-      const targetRoomId = forceRoomId
-        || (selectVal !== "current" ? selectVal : (state.currentRoomId || "room-1"));
+      const targetRoomId = (forceRoomId && forceRoomId !== "current")
+        ? forceRoomId
+        : (forceRoomId === "current"
+            ? (state.currentRoomId || "room-1")
+            : (selectVal !== "current" ? selectVal : (state.currentRoomId || "room-1")));
 
       delete state.customSubtitlesByRoom[targetRoomId];
       state.roomsCustom[targetRoomId] = {
@@ -5072,6 +5556,7 @@
       closeVideoVaultModal();
       enterRoom(targetRoomId);
       renderJJKEpisodeLists(vaultId);
+      renderTheaterLeftMovieList();
       const roomObj = getEffectiveRoom(targetRoomId);
       showToast(`🎬 Đang phát "${item.title}" tại ${roomObj.number}!`, "success");
     }
@@ -5089,7 +5574,156 @@
       showToast("Đã xóa video khỏi kho lưu trữ.", "info");
     }
 
+    let theaterScrollObserver = null;
+    let theaterScrollBound = false;
+
+    function initTheaterMovieScrollMotion() {
+      const container = document.getElementById("theater-left-movie-list");
+      if (!container) return;
+
+      const cards = container.querySelectorAll(".movie-list-card");
+      if (theaterScrollObserver) {
+        theaterScrollObserver.disconnect();
+      }
+
+      if ("IntersectionObserver" in window) {
+        theaterScrollObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("is-visible");
+            }
+          });
+        }, { root: container, threshold: 0.08 });
+        cards.forEach(card => theaterScrollObserver.observe(card));
+      } else {
+        cards.forEach(card => card.classList.add("is-visible"));
+      }
+
+      if (!theaterScrollBound) {
+        theaterScrollBound = true;
+        let lastTop = container.scrollTop;
+        let decayRaf = null;
+
+        const applyMotion = (tiltDeg, shiftPx) => {
+          container.style.setProperty("--scroll-tilt", `${tiltDeg.toFixed(2)}deg`);
+          container.style.setProperty("--scroll-shift", `${shiftPx.toFixed(1)}px`);
+        };
+
+        container.addEventListener("scroll", () => {
+          const nowTop = container.scrollTop;
+          const delta = nowTop - lastTop;
+          lastTop = nowTop;
+
+          const clampedTilt = Math.max(-3.5, Math.min(3.5, -delta * 0.14));
+          const clampedShift = Math.max(-5, Math.min(5, -delta * 0.18));
+          applyMotion(clampedTilt, clampedShift);
+
+          if (decayRaf) cancelAnimationFrame(decayRaf);
+          const settle = () => {
+            const curTilt = parseFloat(container.style.getPropertyValue("--scroll-tilt")) || 0;
+            const curShift = parseFloat(container.style.getPropertyValue("--scroll-shift")) || 0;
+            if (Math.abs(curTilt) < 0.05 && Math.abs(curShift) < 0.05) {
+              applyMotion(0, 0);
+              return;
+            }
+            applyMotion(curTilt * 0.82, curShift * 0.82);
+            decayRaf = requestAnimationFrame(settle);
+          };
+          decayRaf = requestAnimationFrame(settle);
+        }, { passive: true });
+      }
+    }
+
+    function resolveMoviePoster(title = "", existingPoster = "", youtubeId = "") {
+      const t = (title || "").toLowerCase();
+      if (t.includes("meg 2") || t.includes("cá mập siêu bạo chúa 2") || t.includes("vực sâu")) {
+        return "https://upload.wikimedia.org/wikipedia/en/8/8a/Meg_2_The_Trench_poster.jpg";
+      }
+      if (t.includes("đảo đầu lâu") || t.includes("skull island")) {
+        return "https://upload.wikimedia.org/wikipedia/en/d/df/Kong_Skull_Island_poster.jpg";
+      }
+      if (t.includes("godzilla") || t.includes("kong")) {
+        return "https://upload.wikimedia.org/wikipedia/en/6/63/Godzilla_vs._Kong.png";
+      }
+      if (t.includes("resident evil") || t.includes("vùng đất quỷ dữ") || t.includes("quy du")) {
+        return "https://www.sonypictures.com/sites/default/files/banner-images/2026-10/residentevil_banner_2572x1100_pvod.jpg";
+      }
+      if (t.includes("chú thuật") || t.includes("jujutsu") || t.includes("tử diệt")) {
+        return "https://upload.wikimedia.org/wikipedia/en/7/7a/Jujutsu_Kaisen_S3_V1_BD.png";
+      }
+      if (t.includes("cơn thịnh nộ")) {
+        return "https://images.unsplash.com/photo-1509347528160-9a9e33742cdb?auto=format&fit=crop&w=800&q=80";
+      }
+      if (youtubeId) {
+        return `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
+      }
+      const isGenericJjk = existingPoster && existingPoster.includes("Jujutsu_Kaisen_S3_V1_BD.png");
+      if (existingPoster && !isGenericJjk) {
+        return existingPoster;
+      }
+      return "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=800&q=80";
+    }
+
+    function renderTheaterLeftMovieList() {
+      const container = document.getElementById("theater-left-movie-list");
+      const countBadge = document.getElementById("theater-left-movie-count");
+      if (!container) return;
+
+      const items = state.vaultVideos || [];
+      if (countBadge) countBadge.textContent = String(items.length);
+
+      if (items.length === 0) {
+        container.innerHTML = `
+          <div class="py-8 px-2 text-center text-slate-400 text-[11px]">
+            <i class="fa-solid fa-film text-xl text-slate-600 mb-1.5 block"></i>
+            Chưa có phim nào trong Kho Phim.
+          </div>
+        `;
+        return;
+      }
+
+      const currentRoom = state.currentRoomId ? getEffectiveRoom(state.currentRoomId) : null;
+      const currentTitle = currentRoom ? currentRoom.movieTitle : "";
+
+      container.innerHTML = items.map(item => {
+        const isActive = currentTitle && item.title === currentTitle;
+        const posterUrl = resolveMoviePoster(item.title, item.poster, item.youtubeId);
+        const sourceTag = item.sourceType === "youtube" ? "YouTube" : (item.sourceType === "local_file" ? "Local" : "R2 HD");
+        return `
+          <button type="button"
+            onclick="window.appActions.playVaultItemInRoom('${item.id}', 'current')"
+            class="no-holo movie-list-card w-full text-left overflow-hidden cursor-pointer group relative block border-b border-white/10 ${isActive ? "ring-2 ring-inset ring-amber-400/90" : ""}">
+            <div class="relative aspect-[16/10] w-full bg-black overflow-hidden">
+              <img src="${escapeHTML(posterUrl)}" alt="${escapeHTML(item.title)}" loading="lazy"
+                onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=800&q=80';"
+                class="w-full h-full object-cover group-hover:scale-110 transition duration-500 ease-out" />
+              <div class="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-black/10"></div>
+              <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-200 bg-black/30">
+                <span class="w-9 h-9 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shadow-lg scale-90 group-hover:scale-100 transition duration-200">
+                  <i class="fa-solid fa-play text-xs ml-0.5"></i>
+                </span>
+              </div>
+              <span class="absolute top-1.5 left-2 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-sm text-[9px] font-black text-amber-300">
+                ${escapeHTML(item.duration || "HD")}
+              </span>
+              <span class="absolute top-1.5 right-2 px-1.5 py-0.5 rounded text-[9px] font-black ${isActive ? "bg-emerald-500 text-slate-950 shadow-md" : "bg-black/70 backdrop-blur-sm text-sky-300"}">
+                ${isActive ? "Đang chiếu" : sourceTag}
+              </span>
+              <div class="absolute bottom-0 inset-x-0 px-2.5 pb-2 pt-5">
+                <p class="text-[11px] font-extrabold leading-snug line-clamp-2 drop-shadow ${isActive ? "text-amber-300" : "text-white group-hover:text-amber-200"}">
+                  ${escapeHTML(item.title)}
+                </p>
+              </div>
+            </div>
+          </button>
+        `;
+      }).join("");
+
+      initTheaterMovieScrollMotion();
+    }
+
     function renderVideoVaultGrid() {
+      renderTheaterLeftMovieList();
       const grid = document.getElementById("vault-items-grid");
       if (!grid) return;
 
@@ -5097,7 +5731,7 @@
         grid.innerHTML = `
           <div class="col-span-full py-10 text-center text-slate-400">
             <i class="fa-solid fa-box-open text-3xl text-slate-600 mb-2"></i>
-            <p class="text-sm font-bold">Kho video của bạn đang trống</p>
+            <p class="text-sm font-bold">Kho phim của bạn đang trống</p>
             <p class="text-xs">Hãy tải file .mp4 từ máy tính hoặc dán link YouTube ở khung phía trên!</p>
           </div>
         `;
@@ -6322,6 +6956,8 @@
       state.hasCustomName = true;
       saveStoredName(clean);
       updateNameUI();
+      state.memoryCapsules = loadSavedCapsules(clean);
+      renderMemoryCapsulesUI();
 
       // Cập nhật tên trên ghế đang ngồi ở mọi phòng
       for (const [rId, seats] of Object.entries(state.seatsByRoom)) {
@@ -6798,6 +7434,7 @@
               ? `<i class="fa-solid fa-play"></i>`
               : `<i class="fa-solid fa-pause"></i>`;
           }
+          setScreenCurtainClosed(state.ytPaused);
         } else if (videoEl && !videoEl.classList.contains("hidden")) {
           if (videoEl.duration && (forceResync || Math.abs((videoEl.currentTime || 0) - targetTime) > 1.8)) {
             videoEl.currentTime = targetTime % videoEl.duration;
@@ -6810,9 +7447,13 @@
               videoEl.play().catch(() => {});
             });
             if (btn) btn.innerHTML = `<i class="fa-solid fa-pause"></i>`;
+            setScreenCurtainClosed(false);
           } else if (!data.isPlaying && !videoEl.paused) {
             videoEl.pause();
             if (btn) btn.innerHTML = `<i class="fa-solid fa-play"></i>`;
+            setScreenCurtainClosed(true);
+          } else {
+            setScreenCurtainClosed(!data.isPlaying);
           }
         }
 
@@ -7461,6 +8102,8 @@
         state.userName = nameInput.value.trim().slice(0, 28);
         saveStoredName(state.userName);
         updateNameUI();
+        state.memoryCapsules = loadSavedCapsules(state.userName);
+        renderMemoryCapsulesUI();
       }
 
       const targetRoomId = state.bookingDraft.roomId || "room-1";
@@ -7745,7 +8388,17 @@
       // Render 3 thẻ mới nhất ở Sảnh chính (#lobby-capsules-preview)
       const lobbyPreview = document.getElementById("lobby-capsules-preview");
       if (lobbyPreview) {
-        lobbyPreview.innerHTML = list.slice(0, 3).map(c => buildCapsuleCardHTML(c, true)).join("");
+        if (list.length === 0) {
+          lobbyPreview.innerHTML = `
+            <div class="col-span-full py-8 px-4 text-center bg-black/40 border border-dashed border-purple-500/35 rounded-2xl">
+              <i class="fa-solid fa-sparkles text-2xl text-amber-400 mb-2"></i>
+              <p class="text-sm font-bold text-white">Tủ Vé NFT riêng của <span class="text-amber-300">${escapeHTML(state.userName || "bạn")}</span> đang trống</p>
+              <p class="text-xs text-slate-400 mt-1">Đặt vé xem phim hoặc bấm <strong class="text-amber-300">Đúc Nhanh Thẻ Ký Ức</strong> để lưu thẻ NFT độc bản của riêng bạn!</p>
+            </div>
+          `;
+        } else {
+          lobbyPreview.innerHTML = list.slice(0, 3).map(c => buildCapsuleCardHTML(c, true)).join("");
+        }
       }
 
       // Render toàn bộ tủ trưng bày trong Modal (#memory-capsules-grid)
@@ -7918,6 +8571,70 @@
       }
     }
 
+    const POSTER_CACHE_KEY = "cineverse_poster_cache_v1";
+    const posterLookupInFlight = new Set();
+
+    function getCachedPosterMap() {
+      try {
+        const raw = localStorage.getItem(POSTER_CACHE_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveCachedPoster(title, posterUrl) {
+      if (!title || !posterUrl) return;
+      try {
+        const map = getCachedPosterMap();
+        map[title] = posterUrl;
+        localStorage.setItem(POSTER_CACHE_KEY, JSON.stringify(map));
+      } catch (e) {}
+    }
+
+    async function autoResolveMissingPostersWithAI() {
+      const workerBase = (state.r2WorkerUrl || "").trim().replace(/\/+$/, "");
+      if (!workerBase) return;
+
+      const cacheMap = getCachedPosterMap();
+      let updatedFromCache = false;
+      const toFetch = [];
+
+      for (const item of state.vaultVideos || []) {
+        if (!item || !item.title) continue;
+        const resolved = resolveMoviePoster(item.title, item.poster, item.youtubeId);
+        const isGeneric = resolved.includes("photo-1489599849927-2ee91cede3ba") || resolved.includes("photo-1509347528160-9a9e33742cdb");
+        if (!isGeneric) continue;
+
+        if (cacheMap[item.title]) {
+          item.poster = cacheMap[item.title];
+          updatedFromCache = true;
+          continue;
+        }
+        if (!posterLookupInFlight.has(item.title)) {
+          toFetch.push(item);
+        }
+      }
+
+      if (updatedFromCache) {
+        renderTheaterLeftMovieList();
+      }
+
+      for (const item of toFetch.slice(0, 6)) {
+        posterLookupInFlight.add(item.title);
+        try {
+          const res = await fetch(`${workerBase}/poster?title=${encodeURIComponent(item.title)}`, { cache: "force-cache" });
+          const data = await res.json();
+          if (data && data.ok && data.poster) {
+            item.poster = data.poster;
+            saveCachedPoster(item.title, data.poster);
+            renderTheaterLeftMovieList();
+            renderVideoVaultGrid();
+          }
+        } catch (e) {}
+      }
+    }
+
     async function syncFromR2Worker(silent = false) {
       const inputEl = document.getElementById("r2-worker-url-input");
       const statusEl = document.getElementById("r2-sync-status");
@@ -7962,7 +8679,7 @@
             duration: "HD Live",
             durationSec: 1440,
             sizeText: `Cloudflare R2 • ${mb}`,
-            poster: "https://upload.wikimedia.org/wikipedia/en/7/7a/Jujutsu_Kaisen_S3_V1_BD.png",
+            poster: resolveMoviePoster(v.title || v.key || "", v.poster || ""),
             hasLyrics: false,
             createdAt: v.uploaded ? new Date(v.uploaded).getTime() : Date.now()
           });
@@ -7973,6 +8690,7 @@
         updateVaultBadgeCount();
         renderVideoVaultGrid();
         renderJJKEpisodeLists();
+        autoResolveMissingPostersWithAI();
 
         if (statusEl) {
           statusEl.innerHTML = `<span class="text-emerald-400">✅ Đã đồng bộ ${data.videos.length} video từ R2 (+${addedCount} mới)</span>`;
@@ -8145,7 +8863,12 @@
     renderLobby();
     renderJJKEpisodeLists();
     renderMemoryCapsulesUI();
-    if (state.r2WorkerUrl) syncFromR2Worker(true);
+    if (state.r2WorkerUrl) {
+      syncFromR2Worker(true);
+      setInterval(() => {
+        if (state.r2WorkerUrl) syncFromR2Worker(true);
+      }, 45000);
+    }
     initSeatingMapDelegation();
     renderSeatingMap();
     checkInviteUrlParams();
