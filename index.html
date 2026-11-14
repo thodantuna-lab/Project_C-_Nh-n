@@ -21,6 +21,53 @@
     }
 
     /* ======================================================= */
+    /* HIỆU ỨNG CHUYỂN ĐỘNG MƯỢT + HOLOGRAM CHO TẤT CẢ NÚT BẤM */
+    /* ======================================================= */
+    button:not(.cinema-chair):not(.absolute):not(.fixed) {
+      position: relative;
+      overflow: hidden;
+      transition:
+        transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 0.26s ease,
+        background-color 0.26s ease,
+        filter 0.26s ease;
+      will-change: transform;
+    }
+    button:not(.cinema-chair):not(.absolute):not(.fixed)::after {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      background: linear-gradient(
+        118deg,
+        transparent 22%,
+        rgba(56, 189, 248, 0.26) 38%,
+        rgba(232, 121, 249, 0.28) 50%,
+        rgba(251, 191, 36, 0.24) 62%,
+        transparent 78%
+      );
+      transform: translateX(-135%) skewX(-18deg);
+      transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+      pointer-events: none;
+      z-index: 1;
+    }
+    button:not(.cinema-chair):not(.absolute):not(.fixed):hover:not(:disabled) {
+      transform: translateY(-2px) scale(1.025);
+      box-shadow:
+        0 6px 20px rgba(56, 189, 248, 0.24),
+        0 0 14px rgba(232, 121, 249, 0.2),
+        inset 0 0 10px rgba(255, 255, 255, 0.12);
+      filter: brightness(1.08);
+    }
+    button:not(.cinema-chair):not(.absolute):not(.fixed):hover:not(:disabled)::after {
+      transform: translateX(135%) skewX(-18deg);
+    }
+    button:not(.cinema-chair):not(.absolute):not(.fixed):active:not(:disabled) {
+      transform: translateY(0px) scale(0.95);
+      transition-duration: 0.1s;
+    }
+
+    /* ======================================================= */
     /* CHẾ ĐỘ TẮT ĐÈN RẠP THẬT (REAL CINEMA BLACKOUT MODE)     */
     /* ======================================================= */
     body.theater-dimmed {
@@ -81,6 +128,16 @@
       transform: none;
       width: 100%;
       z-index: 35;
+    }
+    @media (min-width: 768px) {
+      body.theater-dimmed #cinema-screen {
+        aspect-ratio: 21 / 9 !important;
+        max-height: 74vh;
+        box-shadow: 0 0 90px rgba(56, 189, 248, 0.28), 0 0 150px rgba(244, 63, 94, 0.14) !important;
+      }
+      body.theater-dimmed #html5-video-player {
+        object-fit: cover !important;
+      }
     }
     body.theater-dimmed .theater-sidebar-card {
       grid-column: 1 / -1 !important;
@@ -1016,12 +1073,12 @@
 
           <!-- Tên bộ phim cỡ lớn -->
           <h1 id="hero-movie-title" class="text-2xl sm:text-4xl lg:text-5xl font-black text-white leading-[1.12] tracking-tight drop-shadow-[0_6px_24px_rgba(0,0,0,0.95)]">
-            Thằn Lằn Khổng Lồ Đại Chiến - Hóa Rồng Phi Thăng
+            Godzilla vs. Kong (2021) - 1080p WEBRip
           </h1>
 
           <!-- Mô tả cốt truyện hấp dẫn (Synopsis) -->
           <p id="hero-synopsis" class="text-xs sm:text-sm text-slate-200/95 leading-relaxed line-clamp-3 max-w-2xl drop-shadow">
-            Cuộc đại chiến truyền thuyết kéo dài 500 năm luân hồi giữa chính nghĩa chi mãng Imoogi và ác xà Buraki tại trung tâm Los Angeles để đoạt viên Long Châu phi thăng thành Chân Long.
+            Hai siêu quái vật huyền thoại Godzilla và Kong bước vào trận đại chiến chấn động thế giới, trong khi nhân loại tiến sâu vào Trái Đất Rỗng để khám phá nguồn gốc thật sự của các Titan.
           </p>
 
           <!-- Diễn viên / Đạo diễn / Thể loại -->
@@ -1114,7 +1171,7 @@
           </label>
           <select id="lobby-book-room"
             class="w-full px-3 py-2.5 rounded-xl bg-stone-950 border border-white/15 text-xs text-white font-bold focus:outline-none focus:border-amber-400">
-            <option value="room-1">Phòng 01 • Thằn Lằn Khổng Lồ Đại Chiến (4K IMAX)</option>
+            <option value="room-1">Phòng 01 • Godzilla vs. Kong (2021)</option>
             <option value="room-2">Phòng 02 • Hà Anh Tuấn - Tháng Tư Là Lời Nói Dối Của Em</option>
             <option value="room-3">Phòng 03 • Tears of Steel: Chiến Binh Tương Lai</option>
             <option value="room-4">Phòng 04 • Sintel: Hành Trình Đi Tìm Rồng Thiêng</option>
@@ -1331,10 +1388,6 @@
               </div>
               <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
                 <span class="text-slate-400">Thử nhanh:</span>
-                <button type="button" onclick="window.appActions.quickLoadSampleYT('CCyGZFUXcuI', '[Review Phim] Thằn Lằn Khổng Lồ Đại Chiến')"
-                  class="px-2 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold cursor-pointer">
-                  🐉 Thằn Lằn Khổng Lồ
-                </button>
                 <button type="button" onclick="window.appActions.quickLoadSampleYT('UCXao7aTDQM', 'Hà Anh Tuấn - Tháng Tư Là Lời Nói Dối Của Em')"
                   class="px-2 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-rose-300 font-bold cursor-pointer">
                   🎵 Hà Anh Tuấn (YT)
@@ -1596,51 +1649,65 @@
 
             <!-- Thanh điều khiển Video + Floating Popover Phụ đề nằm nổi không đẩy layout -->
             <div class="relative z-30 mt-2">
-              <div class="dimmable-ui flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-stone-900/95 border border-white/10 text-xs">
-                <div class="flex items-center gap-1.5 sm:gap-2">
-                  <button type="button" onclick="window.appActions.togglePlayPause()" id="btn-play-pause"
-                    class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold cursor-pointer">
-                    <i class="fa-solid fa-pause mr-1"></i>Tạm dừng
-                  </button>
-                  <button type="button" onclick="window.appActions.toggleMute()" id="btn-mute"
-                    class="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold cursor-pointer">
-                    <i class="fa-solid fa-volume-high mr-1"></i>Âm thanh
-                  </button>
-                  <input type="range" min="0" max="1" step="0.05" value="0.85"
-                    oninput="window.appActions.setVolume(this.value)"
-                    class="w-16 sm:w-20 accent-amber-400 cursor-pointer" title="Âm lượng" />
-                </div>
-
-                <!-- Thanh tua nhanh cho video MP4 -->
-                <div id="mp4-seek-container" class="flex-1 min-w-[120px] flex items-center gap-2">
-                  <span id="video-time-current" class="text-[11px] font-mono text-slate-400">00:00</span>
-                  <input id="video-seek-slider" type="range" min="0" max="100" value="0"
+              <div class="dimmable-ui flex flex-col gap-2 px-3.5 py-2.5 rounded-2xl bg-stone-950/90 backdrop-blur-md border border-white/10 shadow-2xl text-xs">
+                <!-- Hàng 1: Thanh tua toàn chiều ngang chuyên nghiệp -->
+                <div id="mp4-seek-container" class="w-full flex items-center gap-2.5">
+                  <span id="video-time-current" class="text-[11px] font-mono font-bold text-slate-300 w-11 text-right shrink-0">00:00</span>
+                  <input id="video-seek-slider" type="range" min="0" max="100" step="0.1" value="0"
                     oninput="window.appActions.seekVideo(this.value)"
-                    class="flex-1 accent-rose-500 cursor-pointer h-1.5 rounded-lg" />
-                  <span id="video-time-total" class="text-[11px] font-mono text-slate-400">06:10</span>
+                    class="flex-1 accent-rose-500 cursor-pointer h-1.5 rounded-full bg-white/15" />
+                  <span id="video-time-total" class="text-[11px] font-mono font-bold text-slate-400 w-11 shrink-0">06:10</span>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-1.5">
-                  <button type="button" onclick="window.appActions.cycleSubtitleMode()" id="btn-cc-mode"
-                    class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 font-extrabold cursor-pointer" title="Chuyển ngôn ngữ Phụ đề (Tiếng Việt / Tiếng Anh / Tắt)">
-                    <i class="fa-solid fa-closed-captioning mr-1"></i>Phụ đề: Tiếng Việt
-                  </button>
-                  <button type="button" onclick="window.appActions.toggleSubtitleSettingsPanel()" id="btn-sub-settings"
-                    class="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 border border-amber-400/30 text-amber-200 font-bold cursor-pointer" title="Tùy chỉnh vị trí, cỡ chữ & AI Phụ đề">
-                    <i class="fa-solid fa-sliders mr-1"></i>Phụ đề & AI
-                  </button>
-                  <button type="button" onclick="window.appActions.syncLiveTime()"
-                    class="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-emerald-300 font-bold cursor-pointer" title="Đồng bộ thời gian chiếu với phòng">
-                    <i class="fa-solid fa-rotate mr-1"></i>Live
-                  </button>
-                  <button type="button" id="btn-player-mic" onclick="window.appActions.toggleVoiceMic()"
-                    class="px-2.5 py-1 rounded-lg bg-emerald-600/25 hover:bg-emerald-500/40 border border-emerald-400/50 text-emerald-300 font-extrabold cursor-pointer" title="Bật/Tắt Micro nói chuyện trực tiếp">
-                    <i class="fa-solid fa-microphone-slash mr-1"></i>Bật Mic
-                  </button>
-                  <button type="button" onclick="window.appActions.toggleFullscreen()"
-                    class="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-white font-bold cursor-pointer" title="Phóng to toàn màn hình">
-                    <i class="fa-solid fa-expand"></i>
-                  </button>
+                <!-- Hàng 2: Cụm điều khiển gọn gàng chuẩn rạp -->
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center gap-1.5">
+                    <button type="button" onclick="window.appActions.seekBySeconds(-5)"
+                      class="px-2 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-slate-200 font-bold transition cursor-pointer flex items-center gap-1" title="Tua lùi 5 giây (Mũi tên trái ←)">
+                      <i class="fa-solid fa-rotate-left text-[11px]"></i><span class="text-[11px]">5s</span>
+                    </button>
+                    <button type="button" onclick="window.appActions.togglePlayPause()" id="btn-play-pause"
+                      class="w-8 h-8 flex items-center justify-center rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold shadow-md transition cursor-pointer" title="Phát / Tạm dừng (Phím Space)">
+                      <i class="fa-solid fa-pause"></i>
+                    </button>
+                    <button type="button" onclick="window.appActions.seekBySeconds(5)"
+                      class="px-2 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-slate-200 font-bold transition cursor-pointer flex items-center gap-1" title="Tua tới 5 giây (Mũi tên phải →)">
+                      <span class="text-[11px]">5s</span><i class="fa-solid fa-rotate-right text-[11px]"></i>
+                    </button>
+
+                    <div class="h-4 w-px bg-white/10 mx-1 hidden sm:block"></div>
+
+                    <button type="button" onclick="window.appActions.toggleMute()" id="btn-mute"
+                      class="px-2 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-amber-300 font-bold transition cursor-pointer" title="Tắt / Bật âm thanh">
+                      <i class="fa-solid fa-volume-high mr-1"></i><span class="hidden sm:inline">Âm thanh</span>
+                    </button>
+                    <input type="range" min="0" max="1" step="0.05" value="0.85"
+                      oninput="window.appActions.setVolume(this.value)"
+                      class="w-16 sm:w-20 accent-amber-400 cursor-pointer h-1 rounded-full" title="Âm lượng" />
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <button type="button" onclick="window.appActions.cycleSubtitleMode()" id="btn-cc-mode"
+                      class="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-amber-500/20 border border-white/10 hover:border-amber-400/40 text-amber-300 font-bold transition cursor-pointer" title="Chuyển ngôn ngữ Phụ đề (Tiếng Việt / Tiếng Anh / Tắt)">
+                      <i class="fa-solid fa-closed-captioning mr-1"></i>Phụ đề: Tiếng Việt
+                    </button>
+                    <button type="button" onclick="window.appActions.toggleSubtitleSettingsPanel()" id="btn-sub-settings"
+                      class="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-slate-200 font-bold transition cursor-pointer" title="Tùy chỉnh vị trí, cỡ chữ & AI Phụ đề">
+                      <i class="fa-solid fa-sliders mr-1 text-amber-300"></i>Phụ đề & AI
+                    </button>
+                    <button type="button" onclick="window.appActions.syncLiveTime()"
+                      class="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-emerald-500/20 border border-white/10 text-emerald-300 font-bold transition cursor-pointer" title="Đồng bộ thời gian chiếu với phòng">
+                      <i class="fa-solid fa-rotate mr-1"></i>Live
+                    </button>
+                    <button type="button" id="btn-player-mic" onclick="window.appActions.toggleVoiceMic()"
+                      class="px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-500/35 border border-emerald-400/40 text-emerald-300 font-extrabold transition cursor-pointer" title="Bật/Tắt Micro nói chuyện trực tiếp">
+                      <i class="fa-solid fa-microphone-slash mr-1"></i>Bật Mic
+                    </button>
+                    <button type="button" onclick="window.appActions.toggleFullscreen()"
+                      class="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-white font-bold transition cursor-pointer" title="Phóng to toàn màn hình">
+                      <i class="fa-solid fa-expand"></i>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1975,7 +2042,7 @@
                 <div class="bg-stone-950 border border-white/10 rounded-2xl p-3.5 space-y-2.5">
                   <span id="trivia-q-Number" class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-black text-[10px]">CÂU HỎI #1</span>
                   <p id="trivia-q-text" class="text-sm font-extrabold text-white leading-snug">
-                    Trong phim Thằn Lằn Khổng Lồ Đại Chiến, cự mãng chính nghĩa cần nuốt bảo vật gì để hóa thành Chân Long?
+                    Đang tải câu hỏi Đố Vui theo bộ phim trong phòng...
                   </p>
                   <div id="trivia-options-box" class="space-y-1.5 pt-1"></div>
                 </div>
@@ -2071,9 +2138,6 @@
             class="w-full px-3.5 py-2 rounded-xl bg-stone-950 border border-white/15 text-white font-semibold" />
         </div>
         <div class="flex flex-wrap gap-1.5 pt-1">
-          <button type="button" onclick="window.appActions.fillPresetVideo('youtube_panda')" class="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-amber-300 font-semibold cursor-pointer">
-            🐉 Review Thằn Lằn Khổng Lồ (YouTube)
-          </button>
           <button type="button" onclick="window.appActions.fillPresetVideo('ha_anh_tuan')" class="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-rose-300 font-semibold cursor-pointer">
             🎵 Hà Anh Tuấn - Tháng Tư Là Lời Nói Dối Của Em
           </button>
@@ -2394,7 +2458,7 @@
               <label class="text-[11px] font-extrabold uppercase tracking-wider text-amber-400 block">Chọn Phim & Phòng Chiếu</label>
               <select id="booking-room-select" onchange="window.appActions.onBookingRoomChange(this.value)"
                 class="w-full px-3 py-2 rounded-xl bg-stone-900 border border-white/15 text-white font-bold text-xs focus:outline-none focus:border-amber-400">
-                <option value="room-1">Phòng 01 • Thằn Lằn Khổng Lồ Đại Chiến</option>
+                <option value="room-1">Phòng 01 • Godzilla vs. Kong (2021)</option>
                 <option value="room-2">Phòng 02 • Hà Anh Tuấn - Tháng Tư Là Lời Nói Dối Của Em</option>
                 <option value="room-3">Phòng 03 • Tears of Steel (Sci-Fi 4K)</option>
                 <option value="room-4">Phòng 04 • Sintel: Đi Tìm Rồng Thiêng</option>
@@ -3002,16 +3066,7 @@
       sfxEnabled: true,
       sidebarTab: "chat", // 'chat' | 'playlist' | 'trivia' | 'ai'
       roomLocks: {}, // { [roomId]: "1234" }
-      playlistByRoom: {
-        "room-1": [
-          { id: "pl_1", title: "[Review Phim] Thằn Lằn Khổng Lồ Đại Chiến - Hóa Rồng", url: "https://www.youtube.com/watch?v=CCyGZFUXcuI", votes: 6, votedByMe: false },
-          { id: "pl_2", title: "Tears of Steel: Chiến Binh Tương Lai (Sci-Fi 4K)", url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4", votes: 4, votedByMe: false }
-        ],
-        "room-2": [
-          { id: "pl_3", title: "Hà Anh Tuấn - Tháng Tư Là Lời Nói Dối Của Em", url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4", votes: 8, votedByMe: false },
-          { id: "pl_4", title: "Sintel: Hành Trình Đi Tìm Rồng Thiêng", url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4", votes: 3, votedByMe: false }
-        ]
-      },
+      playlistByRoom: {},
       triviaIndex: 0,
       triviaMyScore: 0,
       triviaAnsweredCurrent: false,
@@ -3062,16 +3117,6 @@
 
     // Bộ câu hỏi Mini-game Đố vui Điện ảnh (Trivia)
     const TRIVIA_QUESTIONS = [
-      {
-        q: "Trong phim 'Thằn Lằn Khổng Lồ Đại Chiến', cự mãng Imoogi cần nuốt bảo vật gì để hóa thành Chân Long?",
-        options: ["Viên Long Châu", "Thanh Kiếm Ánh Sáng", "Chiếc Nhẫn Cổ", "Đá Mặt Trăng"],
-        answer: 0
-      },
-      {
-        q: "MV 'Tháng Tư Là Lời Nói Dối Của Em' của Hà Anh Tuấn có sự góp mặt của nữ siêu mẫu nào?",
-        options: ["Võ Hoàng Yến", "Thanh Hằng", "Minh Tú", "Lan Khuê"],
-        answer: 1
-      },
       {
         q: "Trong rạp chiếu phim tiêu chuẩn Lotte Cinema, hàng ghế đôi ở cuối rạp thường được gọi là gì?",
         options: ["Standard Box", "Sweetbox (Ghế Đôi)", "Front Row", "Aisle Seat"],
@@ -4345,7 +4390,7 @@
       state.ytMuted = false;
       const playBtn = document.getElementById("btn-play-pause");
       const muteBtn = document.getElementById("btn-mute");
-      if (playBtn) playBtn.innerHTML = `<i class="fa-solid fa-pause mr-1"></i>Tạm dừng`;
+      if (playBtn) playBtn.innerHTML = `<i class="fa-solid fa-pause"></i>`;
       if (muteBtn) muteBtn.innerHTML = `<i class="fa-solid fa-volume-high mr-1"></i>Âm thanh`;
     }
 
@@ -4477,8 +4522,8 @@
         sendYouTubeCommand(state.ytPaused ? "pauseVideo" : "playVideo");
         if (btn) {
           btn.innerHTML = state.ytPaused
-            ? `<i class="fa-solid fa-play mr-1"></i>Phát tiếp`
-            : `<i class="fa-solid fa-pause mr-1"></i>Tạm dừng`;
+            ? `<i class="fa-solid fa-play"></i>`
+            : `<i class="fa-solid fa-pause"></i>`;
         }
         broadcastRoomVideoSync(state.ytPaused ? "pause" : "play");
         return;
@@ -4487,11 +4532,11 @@
       if (!videoEl || videoEl.classList.contains("hidden")) return;
       if (videoEl.paused) {
         videoEl.play().catch(() => {});
-        if (btn) btn.innerHTML = `<i class="fa-solid fa-pause mr-1"></i>Tạm dừng`;
+        if (btn) btn.innerHTML = `<i class="fa-solid fa-pause"></i>`;
         broadcastRoomVideoSync("play");
       } else {
         videoEl.pause();
-        if (btn) btn.innerHTML = `<i class="fa-solid fa-play mr-1"></i>Phát tiếp`;
+        if (btn) btn.innerHTML = `<i class="fa-solid fa-play"></i>`;
         broadcastRoomVideoSync("pause");
       }
     }
@@ -4550,6 +4595,37 @@
         broadcastRoomVideoSync("seek");
       }
     }
+
+    function seekBySeconds(delta = 5) {
+      const videoEl = document.getElementById("html5-video-player");
+      if (!videoEl || videoEl.classList.contains("hidden") || !videoEl.duration) return;
+      const nextTime = Math.max(0, Math.min(videoEl.duration, (videoEl.currentTime || 0) + delta));
+      videoEl.currentTime = nextTime;
+      const curEl = document.getElementById("video-time-current");
+      const sliderEl = document.getElementById("video-seek-slider");
+      if (curEl) curEl.textContent = formatTime(nextTime);
+      if (sliderEl) sliderEl.value = Math.min(100, (nextTime / videoEl.duration) * 100);
+      broadcastRoomVideoSync("seek");
+      showToast(delta < 0 ? `⏪ Tua lùi ${Math.abs(delta)}s (${formatTime(nextTime)})` : `⏩ Tua tới ${delta}s (${formatTime(nextTime)})`, "info");
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (!state.currentRoomId) return;
+      const tag = (document.activeElement?.tagName || "").toUpperCase();
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || document.activeElement?.isContentEditable) {
+        return;
+      }
+      if (e.code === "Space") {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        seekBySeconds(-5);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        seekBySeconds(5);
+      }
+    });
 
     function syncLiveTime() {
       if (!state.currentRoomId) return;
@@ -6050,7 +6126,7 @@
           state.ytPaused = false;
           sendYouTubeCommand("playVideo");
         }
-        if (playBtn) playBtn.innerHTML = `<i class="fa-solid fa-pause mr-1"></i>Tạm dừng`;
+        if (playBtn) playBtn.innerHTML = `<i class="fa-solid fa-pause"></i>`;
         playCinemaBellSFX();
         pushMessageToRoom(`👑 [CHỦ PHÒNG] Đã đồng bộ PHÁT TIẾP bộ phim cho toàn bộ khán giả trong phòng!`);
         showToast("Đã phát tín hiệu đồng bộ Play cho toàn phòng!", "success");
@@ -6060,7 +6136,7 @@
           state.ytPaused = true;
           sendYouTubeCommand("pauseVideo");
         }
-        if (playBtn) playBtn.innerHTML = `<i class="fa-solid fa-play mr-1"></i>Phát tiếp`;
+        if (playBtn) playBtn.innerHTML = `<i class="fa-solid fa-play"></i>`;
         pushMessageToRoom(`☕ [CHỦ PHÒNG] Tạm dừng 2 phút để mọi người lấy thêm Bắp Nước nhé!`);
         showToast("Đã tạm dừng nghỉ giải lao toàn phòng!", "info");
       }
@@ -6341,10 +6417,7 @@
     }
 
     function fillPresetVideo(preset) {
-      if (preset === "youtube_panda") {
-        document.getElementById("custom-video-title").value = "[Review Phim] Thằn Lằn Khổng Lồ Đại Chiến - Hóa Rồng Phi Thăng";
-        document.getElementById("custom-video-url").value = "https://www.youtube.com/watch?v=CCyGZFUXcuI";
-      } else if (preset === "ha_anh_tuan") {
+      if (preset === "ha_anh_tuan") {
         document.getElementById("custom-video-title").value = "Hà Anh Tuấn - Tháng Tư Là Lời Nói Dối Của Em (Official MV)";
         document.getElementById("custom-video-url").value = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
       }
@@ -6718,8 +6791,8 @@
           sendYouTubeCommand(data.isPlaying ? "playVideo" : "pauseVideo");
           if (btn) {
             btn.innerHTML = state.ytPaused
-              ? `<i class="fa-solid fa-play mr-1"></i>Phát tiếp`
-              : `<i class="fa-solid fa-pause mr-1"></i>Tạm dừng`;
+              ? `<i class="fa-solid fa-play"></i>`
+              : `<i class="fa-solid fa-pause"></i>`;
           }
         } else if (videoEl && !videoEl.classList.contains("hidden")) {
           if (videoEl.duration && (forceResync || Math.abs((videoEl.currentTime || 0) - targetTime) > 1.8)) {
@@ -6732,10 +6805,10 @@
               if (muteBtn) muteBtn.innerHTML = `<i class="fa-solid fa-volume-xmark mr-1 text-rose-400"></i>Đã tắt tiếng`;
               videoEl.play().catch(() => {});
             });
-            if (btn) btn.innerHTML = `<i class="fa-solid fa-pause mr-1"></i>Tạm dừng`;
+            if (btn) btn.innerHTML = `<i class="fa-solid fa-pause"></i>`;
           } else if (!data.isPlaying && !videoEl.paused) {
             videoEl.pause();
-            if (btn) btn.innerHTML = `<i class="fa-solid fa-play mr-1"></i>Phát tiếp`;
+            if (btn) btn.innerHTML = `<i class="fa-solid fa-play"></i>`;
           }
         }
 
@@ -7970,6 +8043,7 @@
       toggleMute,
       setVolume,
       seekVideo,
+      seekBySeconds,
       syncLiveTime,
       toggleRoomHost,
       toggleVoiceMic,
