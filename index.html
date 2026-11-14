@@ -4951,6 +4951,26 @@
       return cues;
     }
 
+    function syncRoomSubtitlesToRTDB(roomId, cues, sourceLabel = ".SRT") {
+      if (!rtdb || !rtdbMod || !roomId || !Array.isArray(cues) || !cues.length) return;
+      if (currentRoomHost && currentRoomHost.uid && currentRoomHost.uid !== state.uid) return;
+      const room = getEffectiveRoom(roomId);
+      const compactCues = cues.map(c => ({
+        t: Number(Number(c.time || 0).toFixed(2)),
+        e: Number(Number(c.end || 0).toFixed(2)),
+        en: String(c.en || ""),
+        vi: String(c.vi || c.en || "")
+      }));
+      rtdbMod.set(rtdbMod.ref(rtdb, `room_subtitles/${roomId}`), {
+        sourceKey: getSubtitleSyncKey(room),
+        sourceLabel,
+        cues: compactCues,
+        uid: state.uid,
+        userName: state.userName,
+        updatedAt: Date.now()
+      }).catch(() => {});
+    }
+
     async function translateCuesEnToVi(cues, roomId) {
       if (!cues || !cues.length) return;
       const btn = document.getElementById("btn-srt-upload");
@@ -4960,21 +4980,36 @@
       for (let i = 0; i < cues.length; i += BATCH_SIZE) {
         if (state.customSubtitlesByRoom[roomId] !== cues) return; // Người dùng đã đổi phim hoặc nạp file khác
         const slice = cues.slice(i, i + BATCH_SIZE);
-        const joined = slice.map((c, idx) => `[[${idx}]] ${c.en}`).join("\n");
-        try {
-          const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(joined)}`;
-          const res = await fetch(url);
-          const data = await res.json();
-          const fullTranslated = Array.isArray(data?.[0]) ? data[0].map(seg => seg[0] || "").join("") : "";
-          const parts = fullTranslated.split(/\[\[\s*(\d+)\s*\]\]/);
-          for (let p = 1; p < parts.length; p += 2) {
-            const idxNum = parseInt(parts[p], 10);
-            const txt = (parts[p + 1] || "").trim();
-            if (!isNaN(idxNum) && slice[idxNum] && txt) {
-              slice[idxNum].vi = txt;
+        const joined = slice.map((c, idx) => `[[${idx}]] ${String(c.en || "").replace(/\r?\n/g, " ")}`).join("\n");
+
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(joined)}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const fullTranslated = Array.isArray(data?.[0]) ? data[0].map(seg => seg[0] || "").join("") : "";
+            const parts = fullTranslated.split(/(?:\[\[|\[|【)\s*(\d+)\s*(?:\]\]|\]|】)/);
+            let matchedCount = 0;
+            for (let p = 1; p < parts.length; p += 2) {
+              const idxNum = parseInt(parts[p], 10);
+              const txt = (parts[p + 1] || "").trim();
+              if (!isNaN(idxNum) && slice[idxNum] && txt) {
+                slice[idxNum].vi = txt;
+                matchedCount++;
+              }
             }
+            if (matchedCount < Math.ceil(slice.length / 2)) {
+              const rawLines = fullTranslated.split(/\r?\n/).map(l => l.replace(/^(?:\[\[|\[|【)?\s*\d+\s*(?:\]\]|\]|】)?\s*/, "").trim()).filter(Boolean);
+              if (rawLines.length === slice.length) {
+                rawLines.forEach((line, idx) => { slice[idx].vi = line; });
+              }
+            }
+            break;
+          } catch (e) {
+            if (attempt === 0) await new Promise(r => setTimeout(r, 450));
           }
-        } catch (e) {}
+        }
 
         done = Math.min(cues.length, i + BATCH_SIZE);
         if (btn) {
@@ -4984,6 +5019,9 @@
         if (state.currentRoomId === roomId) {
           const videoEl = document.getElementById("html5-video-player");
           renderSubtitleAtTime(getEffectiveRoom(roomId), videoEl?.currentTime || 0);
+        }
+        if (done % 100 === 0 || done === cues.length) {
+          syncRoomSubtitlesToRTDB(roomId, cues, "Translated VI");
         }
         await new Promise(r => setTimeout(r, 120));
       }
@@ -5013,6 +5051,7 @@
       }
       const videoEl = document.getElementById("html5-video-player");
       renderSubtitleAtTime(getEffectiveRoom(roomId), videoEl?.currentTime || 0);
+      syncRoomSubtitlesToRTDB(roomId, cues, sourceLabel);
       showToast(`📝 Đã nạp ${cues.length} câu từ ${sourceLabel}! Đang tự động dịch sang Tiếng Việt...`, "success");
       await translateCuesEnToVi(cues, roomId);
     }
@@ -5032,15 +5071,23 @@
       if (state.customSubtitlesByRoom[room.id]?.length) return;
       const srtUrl = room.videoUrl.replace(/\.(mp4|webm|mov|mkv|m4v)(\?.*)?$/i, ".srt");
       if (srtUrl === room.videoUrl) return;
+      let text = "";
       try {
         const res = await fetch(srtUrl, { cache: "no-store" });
-        if (!res.ok) return;
-        const text = await res.text();
-        const cues = parseSubtitleText(text);
-        if (cues.length > 0 && state.currentRoomId === room.id) {
-          await applyParsedSubtitlesToRoom(cues, room.id, "R2 .SRT");
-        }
+        if (res.ok) text = await res.text();
       } catch (e) {}
+      if (!text && state.r2WorkerUrl) {
+        try {
+          const workerBase = state.r2WorkerUrl.replace(/\/+$/, "");
+          const proxyRes = await fetch(`${workerBase}/sub?url=${encodeURIComponent(srtUrl)}`, { cache: "no-store" });
+          if (proxyRes.ok) text = await proxyRes.text();
+        } catch (e) {}
+      }
+      if (!text) return;
+      const cues = parseSubtitleText(text);
+      if (cues.length > 0 && state.currentRoomId === room.id && !state.customSubtitlesByRoom[room.id]?.length) {
+        await applyParsedSubtitlesToRoom(cues, room.id, "R2 .SRT");
+      }
     }
 
     function sendYouTubeCommand(func, args = "") {
@@ -7594,8 +7641,10 @@
       }
       if (typeof data.subtitleOffsetSec === "number" && data.subtitleOffsetSec !== state.subtitleOffsetSec) {
         state.subtitleOffsetSec = data.subtitleOffsetSec;
-        updateSubtitleOffsetUI();
         const roomObj = getEffectiveRoom(roomId);
+        const key = getSubtitleSyncKey(roomObj);
+        if (key) state.subtitleOffsetsByKey[key] = data.subtitleOffsetSec;
+        updateSubtitleOffsetUI();
         const vEl = document.getElementById("html5-video-player");
         if (roomObj && vEl && !vEl.classList.contains("hidden")) {
           renderSubtitleAtTime(roomObj, vEl.currentTime || 0);
@@ -7774,6 +7823,25 @@
         if (!data) return;
         applyRemoteRoomEffects(data, roomId, true);
       }, () => {});
+      const unsubSubtitles = rtdbMod.onValue(rtdbMod.ref(rtdb, `room_subtitles/${roomId}`), (snap) => {
+        const data = snap.val();
+        if (!data || !Array.isArray(data.cues) || !data.cues.length) return;
+        if (data.uid === state.uid) return;
+        if (currentRoomHost && currentRoomHost.uid && data.uid !== currentRoomHost.uid) return;
+        const roomObj = getEffectiveRoom(roomId);
+        const currentKey = getSubtitleSyncKey(roomObj);
+        if (data.sourceKey && currentKey && data.sourceKey !== currentKey) return;
+        state.customSubtitlesByRoom[roomId] = data.cues.map(c => ({
+          time: Number(c.t) || 0,
+          end: Number(c.e) || 0,
+          en: String(c.en || ""),
+          vi: String(c.vi || c.en || "")
+        }));
+        const vEl = document.getElementById("html5-video-player");
+        if (state.currentRoomId === roomId && vEl && !vEl.classList.contains("hidden")) {
+          renderSubtitleAtTime(roomObj, vEl.currentTime || 0);
+        }
+      }, () => {});
       let lastReactionId = "";
       const unsubReact = rtdbMod.onValue(rtdbMod.ref(rtdb, `reactions/${roomId}`), (snap) => {
         const data = snap.val();
@@ -7794,6 +7862,7 @@
       roomSyncUnsub = () => {
         unsubVideo();
         unsubEffects();
+        unsubSubtitles();
         unsubReact();
         unsubHost();
       };
