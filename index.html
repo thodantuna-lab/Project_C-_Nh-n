@@ -1784,7 +1784,7 @@
               class="px-2 py-0.5 rounded-lg bg-stone-800 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-[11px] transition cursor-pointer">
               <i class="fa-solid fa-crown mr-1"></i>Nhận Chủ Trì
             </button>
-            <div id="voice-audio-container" class="hidden"></div>
+            <div id="voice-audio-container" class="fixed -left-[9999px] top-0 w-px h-px opacity-0 pointer-events-none" aria-hidden="true"></div>
           </div>
           <h2 id="room-header-title" class="text-xs sm:text-sm font-extrabold text-white mt-0.5 truncate max-w-[200px] sm:max-w-xs md:max-w-md">Tên bộ phim</h2>
         </div>
@@ -7704,8 +7704,10 @@
     const VOICE_ICE_CONFIG = {
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" }
-      ]
+        { urls: "stun:stun1.l.google.com:19302" },
+        { urls: "stun:stun2.l.google.com:19302" }
+      ],
+      iceCandidatePoolSize: 4
     };
     let localVoiceStream = null;
     let voiceMicActive = false;
@@ -7732,9 +7734,20 @@
     }
 
     function resumePendingVoiceAudio() {
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) {
+          if (!window.__voiceAudioCtx) window.__voiceAudioCtx = new Ctx();
+          if (window.__voiceAudioCtx.state === "suspended") {
+            window.__voiceAudioCtx.resume().catch(() => {});
+          }
+        }
+      } catch (e) {}
       const container = document.getElementById("voice-audio-container");
       if (!container) return;
       container.querySelectorAll("audio").forEach(a => {
+        a.muted = false;
+        a.volume = 1;
         if (a.srcObject && a.paused) {
           a.play().catch(() => {});
         }
@@ -7742,7 +7755,9 @@
     }
     if (!window.__voiceAutoplayUnlockBound) {
       window.__voiceAutoplayUnlockBound = true;
-      document.addEventListener("pointerdown", resumePendingVoiceAudio, { passive: true });
+      ["pointerdown", "touchstart", "click", "keydown"].forEach(evt => {
+        document.addEventListener(evt, resumePendingVoiceAudio, { passive: true });
+      });
     }
 
     function closeVoicePeer(remoteUid) {
@@ -7757,20 +7772,28 @@
     }
 
     function getOrCreateVoicePeer(roomId, remoteUid) {
-      if (voicePeers[remoteUid]) return voicePeers[remoteUid];
+      const existing = voicePeers[remoteUid];
+      if (existing && existing.pc && existing.pc.connectionState !== "closed" && existing.pc.connectionState !== "failed") {
+        return existing;
+      }
+      if (existing) closeVoicePeer(remoteUid);
+
       const pc = new RTCPeerConnection(VOICE_ICE_CONFIG);
       const container = document.getElementById("voice-audio-container");
       const audioEl = document.createElement("audio");
       audioEl.autoplay = true;
       audioEl.playsInline = true;
+      audioEl.muted = false;
+      audioEl.volume = 1;
       if (container) container.appendChild(audioEl);
 
-      const entry = { pc, audioEl, pendingIce: [], makingOffer: false, audioSender: null };
+      const entry = { pc, audioEl, pendingIce: [], makingOffer: false, audioSender: null, hadSentTrack: false };
       voicePeers[remoteUid] = entry;
 
       if (localVoiceStream && localVoiceStream.getAudioTracks().length > 0) {
         const track = localVoiceStream.getAudioTracks()[0];
         entry.audioSender = pc.addTrack(track, localVoiceStream);
+        entry.hadSentTrack = true;
       } else {
         const transceiver = pc.addTransceiver("audio", { direction: "sendrecv" });
         entry.audioSender = transceiver.sender;
@@ -7779,7 +7802,14 @@
       pc.ontrack = (event) => {
         const stream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
         audioEl.srcObject = stream;
-        audioEl.play().catch(() => {});
+        audioEl.muted = false;
+        audioEl.volume = 1;
+        audioEl.play().catch(() => {
+          if (!window.__voiceAutoplayToastShown) {
+            window.__voiceAutoplayToastShown = true;
+            showToast("🔊 Bấm vào màn hình để mở tiếng Micro từ bạn bè (MacBook/Safari)!", "info");
+          }
+        });
       };
 
       pc.onicecandidate = (event) => {
@@ -7857,8 +7887,12 @@
           handledSignals[sigKey] = true;
           try {
             if (sig.type === "offer") {
-              closeVoicePeer(fromUid);
               const entry = getOrCreateVoicePeer(roomId, fromUid);
+              const polite = state.uid > fromUid;
+              if (entry.pc.signalingState === "have-local-offer") {
+                if (!polite) continue;
+                await entry.pc.setLocalDescription({ type: "rollback" }).catch(() => {});
+              }
               await entry.pc.setRemoteDescription(new RTCSessionDescription({ type: "offer", sdp: sig.sdp }));
               for (const c of entry.pendingIce) {
                 await entry.pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
@@ -7993,11 +8027,22 @@
       voiceMicActive = true;
       updateVoiceMicButtonUI();
 
-      // Gắn track trực tiếp vào các kết nối WebRTC hiện có (không đóng/tạo lại gây rớt kết nối)
+      // Gắn track trực tiếp vào các kết nối WebRTC hiện có và đồng bộ lại SDP nếu Safari/MacBook chưa nhận stream
       for (const [rUid, entry] of Object.entries(voicePeers)) {
         try {
           if (entry && entry.audioSender && entry.pc && entry.pc.connectionState !== "closed") {
             await entry.audioSender.replaceTrack(track);
+            if (!entry.hadSentTrack && entry.pc.signalingState === "stable" && rtdb && rtdbMod) {
+              entry.hadSentTrack = true;
+              const offer = await entry.pc.createOffer();
+              await entry.pc.setLocalDescription(offer);
+              await rtdbMod.set(rtdbMod.ref(rtdb, `voice/${roomId}/signals/${rUid}/${state.uid}`), {
+                type: "offer",
+                sdp: offer.sdp,
+                from: state.uid,
+                ts: Date.now()
+              });
+            }
           }
         } catch (e) {}
       }
